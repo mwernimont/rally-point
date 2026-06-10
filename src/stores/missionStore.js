@@ -6,6 +6,11 @@ const BLEED_ROUNDS = 2
 const ACTIONS_PER_TURN = 2
 const SPRINT_RANGE = 8
 
+const ENEMY_MAX_HP = 3
+const ENEMY_MAX_AMMO = 3
+const ENEMY_ACTIONS_PER_TURN = 2
+const ENEMY_MOVES_PER_TURN = 5
+
 export const useMissionStore = defineStore('mission', () => {
   // 'idle' | 'active' | 'complete' | 'failed'
   const status = ref('idle')
@@ -13,8 +18,9 @@ export const useMissionStore = defineStore('mission', () => {
   const turnCount = ref(0)
   const objectiveMet = ref(false)
 
-  // Enemy state (stubbed — populated when enemy spawning is built)
   const enemies = ref([])
+  // enemy.id → { hp, maxHp, ammo, maxAmmo, moves, movesPerTurn, actionsRemaining, status }
+  const enemyStats = ref({})
 
   // soldier.id → { hp, maxHp, ammo, maxAmmo, moves, movesPerTurn, status, bleedTimer }
   const soldierStats = ref({})
@@ -93,6 +99,19 @@ export const useMissionStore = defineStore('mission', () => {
 
   function spawnEnemies(enemyList) {
     enemies.value = enemyList
+    enemyStats.value = {}
+    for (const e of enemyList) {
+      enemyStats.value[e.id] = {
+        hp: ENEMY_MAX_HP,
+        maxHp: ENEMY_MAX_HP,
+        ammo: ENEMY_MAX_AMMO,
+        maxAmmo: ENEMY_MAX_AMMO,
+        moves: ENEMY_MOVES_PER_TURN,
+        movesPerTurn: ENEMY_MOVES_PER_TURN,
+        actionsRemaining: ENEMY_ACTIONS_PER_TURN,
+        status: 'active',
+      }
+    }
   }
 
   function complete() {
@@ -113,14 +132,16 @@ export const useMissionStore = defineStore('mission', () => {
     turnCount.value = 0
     objectiveMet.value = false
     enemies.value = []
+    enemyStats.value = {}
     soldierStats.value = {}
   }
 
   return {
-    status, mapSize, turnCount, objectiveMet, enemies, soldierStats,
+    status, mapSize, turnCount, objectiveMet, enemies, enemyStats, soldierStats,
     isActive, isOver, enemyCount, allActionsSpent,
     start, spawnEnemies, complete, fail, nextTurn, reset,
     applyDamage, tickBleedTimers, spendAmmo, resetMoves,
     INSTANT_DEATH_FLOOR, BLEED_ROUNDS, ACTIONS_PER_TURN, SPRINT_RANGE,
+    ENEMY_MAX_HP, ENEMY_MAX_AMMO, ENEMY_ACTIONS_PER_TURN, ENEMY_MOVES_PER_TURN,
   }
 })
