@@ -5,6 +5,7 @@ const router = useRouter()
 
 const SEED_RATE = 0.05
 const SPREAD_CHANCE = 0.55
+const DEPLOY_DEPTH = 3
 
 const size = Math.floor(Math.random() * 11) + 15
 
@@ -19,16 +20,13 @@ for (let i = 0; i < seedCount; i++) {
   grid[r][c] = 'hard'
 }
 
-// Flood-fill outward — each spread tile can keep spreading,
-// probability compounds per hop so clusters stay organic
+// Flood-fill — only seeds spread, half cover doesn't propagate
 const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]]
 const queue = []
-
 for (let r = 0; r < size; r++)
   for (let c = 0; c < size; c++)
     if (grid[r][c] === 'hard') queue.push([r, c])
 
-// Only seeds spread — half cover tiles don't propagate further
 while (queue.length) {
   const [r, c] = queue.shift()
   if (grid[r][c] !== 'hard') continue
@@ -41,6 +39,41 @@ while (queue.length) {
       }
     }
   }
+}
+
+// Find a 2x2 deploy zone along an edge
+function findDeployZone(edge) {
+  const candidates = []
+  for (let r = 0; r < size - 1; r++) {
+    for (let c = 0; c < size - 1; c++) {
+      const inZone =
+        (edge === 'north' && r < DEPLOY_DEPTH) ||
+        (edge === 'south' && r >= size - DEPLOY_DEPTH - 1) ||
+        (edge === 'west'  && c < DEPLOY_DEPTH) ||
+        (edge === 'east'  && c >= size - DEPLOY_DEPTH - 1)
+
+      if (!inZone) continue
+
+      const block = [[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]]
+      if (block.every(([br, bc]) => grid[br][bc] === 'empty')) {
+        candidates.push(block)
+      }
+    }
+  }
+  return candidates.length
+    ? candidates[Math.floor(Math.random() * candidates.length)]
+    : null
+}
+
+const edges = ['north', 'south', 'east', 'west'].sort(() => Math.random() - 0.5)
+let deployZone = null
+for (const edge of edges) {
+  deployZone = findDeployZone(edge)
+  if (deployZone) break
+}
+
+if (deployZone) {
+  deployZone.forEach(([r, c]) => { grid[r][c] = 'deploy' })
 }
 
 const cells = grid.flat()
@@ -122,6 +155,10 @@ header {
 
   &.hard {
     background-color: #4a4a3e;
+  }
+
+  &.deploy {
+    background-color: #5b8fa8;
   }
 }
 </style>
