@@ -100,6 +100,16 @@ const selectedIndex = computed(() => {
   return key != null ? parseInt(key) : null
 })
 
+const selectedSoldier = computed(() =>
+  selectedSoldierId.value
+    ? Object.values(soldierPositions).find(s => s?.id === selectedSoldierId.value) ?? null
+    : null
+)
+
+const selectedMovesLeft = computed(() =>
+  selectedSoldierId.value ? movesRemaining[selectedSoldierId.value] : null
+)
+
 // BFS — cover blocks, soldiers pass through each other
 function getMovementRange(fromIndex, moves) {
   const fromRow = Math.floor(fromIndex / size)
@@ -156,13 +166,7 @@ function onCellClick(index) {
     soldierPositions[index] = soldier
     movesRemaining[soldier.id] -= movesUsed
 
-    if (movesRemaining[soldier.id] > 0) {
-      // Keep selected and show remaining range from new position
-      highlightedCells.value = getMovementRange(index, movesRemaining[soldier.id])
-    } else {
-      selectedSoldierId.value = null
-      highlightedCells.value = new Map()
-    }
+    highlightedCells.value = getMovementRange(index, movesRemaining[soldier.id])
     return
   }
 
@@ -178,6 +182,15 @@ function onCellClick(index) {
       <span class="map-size">{{ size }}×{{ size }}</span>
       <button class="end-btn" @click="() => { mission.complete(); router.push('/after-mission') }">End Mission</button>
     </header>
+    <div class="soldier-hud">
+      <template v-if="selectedSoldier">
+        <div class="swatch" :style="{ backgroundColor: selectedSoldier.color }" />
+        <span class="name">{{ selectedSoldier.name }}</span>
+        <span class="moves">{{ selectedMovesLeft }} / {{ MOVE_RANGE }}</span>
+      </template>
+      <span v-else class="empty">No soldier selected</span>
+    </div>
+
     <div class="grid-viewport">
       <div class="grid" :style="{ gridTemplateColumns: `repeat(${size}, 25px)` }">
         <div
@@ -229,6 +242,37 @@ header {
   &:hover {
     border-color: $color-primary;
     color: $color-primary;
+  }
+}
+
+.soldier-hud {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  height: 32px;
+  flex-shrink: 0;
+
+  .swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+
+  .moves {
+    font-size: 0.85rem;
+    color: $color-text-muted;
+  }
+
+  .empty {
+    font-size: 0.85rem;
+    color: $color-text-muted;
   }
 }
 

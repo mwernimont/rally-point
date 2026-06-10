@@ -18,11 +18,25 @@ npm test -- src/tests/MainMenu.test.js --run
 
 ## Architecture
 
-This is a turn-based browser game (single player vs AI) built with Vue 3 + Vite. Vue Router handles navigation between screens; Pinia is not yet added but can be introduced when game state needs to be shared across many components.
+This is a turn-based browser tactics game (single player vs AI) built with Vue 3 + Vite + Pinia. Vue Router handles navigation between screens.
 
 **Routing** — `src/router/index.js` defines all routes. The root view (`/`) is eagerly loaded; game views use lazy imports. `src/App.vue` is a thin shell containing only `<RouterView />`.
 
-**Views vs Components** — Screens (full-page route targets) live in `src/views/`. Reusable UI pieces should go in `src/components/` when that directory is created.
+Screen flow: `MainMenu → SquadSelect → GameBoard → AfterMission → MainMenu`
+
+**Views vs Components** — Screens (full-page route targets) live in `src/views/`. Reusable UI pieces live in `src/components/` (currently `SoldierCard.vue`).
+
+**Pinia Stores** — live in `src/stores/`:
+- `squadStore.js` — soldier roster, selected squad (max 4), select/deselect actions. The full `ROSTER` definition lives here. Squad selection persists across navigation.
+- `missionStore.js` — mission lifecycle (`idle → active → complete/failed`), map size, turn count, enemy stubs. `mission.start(size)` is called when `GameBoard` mounts.
+
+**GameBoard** — all map generation and game state lives in `src/views/GameBoard.vue`:
+- Map is an NxN grid (15–25) generated fresh each mission using a cluster flood-fill algorithm for cover
+- `cells[]` is a flat array of terrain types: `empty`, `half`, `hard`, `deploy` — built once on mount, never mutated
+- `soldierPositions` (reactive object) maps `cellIndex → soldier` — this is the source of truth for where soldiers are
+- `movesRemaining` (reactive object) maps `soldier.id → number` — each soldier gets 5 moves per turn
+- BFS (`getMovementRange`) calculates reachable tiles — cover blocks movement, soldiers pass through each other
+- Selecting a soldier shows the movement range and keeps the soldier selected after moving for follow-up actions
 
 **SCSS** — Global styles and the CSS reset are in `src/styles/main.scss`, imported once in `src/main.js`. `src/styles/_variables.scss` holds design tokens (colors, spacing). These variables are auto-injected into every component's `<style lang="scss" scoped>` block via `vite.config.js` `additionalData`, so no `@use` import is needed inside components.
 
