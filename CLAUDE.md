@@ -28,7 +28,7 @@ Screen flow: `MainMenu → SquadSelect → GameBoard → AfterMission → MainMe
 
 **Pinia Stores** — live in `src/stores/`:
 - `squadStore.js` — soldier roster, selected squad (max 4), select/deselect actions. The full `ROSTER` definition lives here. Each roster entry carries base stats: `maxHp: 5`, `maxAmmo: 3`, `movesPerTurn: 5`. Squad selection persists across navigation.
-- `missionStore.js` — mission lifecycle (`idle → active → complete/failed`), map size, turn count, enemy stubs, and all per-soldier combat stats.
+- `missionStore.js` — mission lifecycle (`idle → active → complete/failed`), map size, turn count, enemy list, and all per-soldier/per-enemy combat stats.
 
 **Soldier stats** — `missionStore` owns the live per-soldier state, keyed by `soldier.id`:
 ```js
@@ -42,26 +42,39 @@ soldierStats[id] = {
   bleedTimer,          // null when active; 2 when downed, counts down each turn end
 }
 ```
-Key constants exported from `missionStore`: `INSTANT_DEATH_FLOOR = -2`, `BLEED_ROUNDS = 2`, `ACTIONS_PER_TURN = 2`, `SPRINT_RANGE = 8`.
+Key constants from `missionStore`: `INSTANT_DEATH_FLOOR = -2`, `BLEED_ROUNDS = 2`, `ACTIONS_PER_TURN = 2`, `SPRINT_RANGE = 8`.
 Key actions: `applyDamage(id, dmg)`, `tickBleedTimers()`, `spendAmmo(id)`, `resetMoves()` (resets moves + AP + hasMoved for all active soldiers).
 `mission.start(size, soldiers)` initialises stats from each soldier's base stats. Call `resetMoves()` at the start of each player turn.
+
+**Enemy stats** — all enemies share the same base constants (`ENEMY_MAX_HP = 3`, `ENEMY_MAX_AMMO = 3`, `ENEMY_MOVES_PER_TURN = 5`, `ENEMY_ACTIONS_PER_TURN = 2`). Live state is keyed by `enemy.id` in `mission.enemyStats`:
+```js
+enemyStats[id] = { hp, maxHp, ammo, maxAmmo, moves, movesPerTurn, actionsRemaining, status }
+```
+`mission.spawnEnemies(enemyList)` populates both `enemies` and `enemyStats`. `mission.applyEnemyDamage(id, dmg)` reduces HP and removes the enemy from `enemies` on death (status set to `'dead'`).
+
+**Enemy spawn** — GameBoard generates 4–8 enemies on the opposite edge from the player using a lane-based system. The map is divided into N equal lanes (one per enemy); each enemy spawns at a random empty cell within their lane's 4-row zone. Avoids cover cells.
 
 **Action point system** — each soldier gets 2 AP per turn:
 - Normal move (up to `movesPerTurn` tiles) costs 1 AP on first move; further tile moves within the same turn are free (`hasMoved` flag tracks this)
 - Sprint (up to `SPRINT_RANGE` tiles) costs 2 AP and is only available when `!hasMoved && actionsRemaining >= 2`
-- Shoot / item use will cost 1 AP each (not yet implemented)
-- `mission.allActionsSpent` computed returns true when every active soldier has `actionsRemaining === 0` — used to highlight the End Turn button (⚠️ known bug: button highlight not triggering reliably; under investigation)
+- Shoot costs 1 AP and 1 ammo per shot
+- `mission.allActionsSpent` computed returns true when every active soldier has `actionsRemaining === 0` — used to highlight the End Turn button
+
+**Shooting** — player selects a soldier, clicks the Shoot button in the HUD to enter targeting mode. Valid targets (enemies with unobstructed LOS) are highlighted. Click a target to fire (1 dmg, 1 AP, 1 ammo). Hard cover blocks LOS (Bresenham raycast). `shootMode` ref gates targeting; `shootableTargets` and `hasValidTargets` are computeds derived from `mission.enemies` + LOS checks.
+
+**Turn flow** — Player turn → End Turn → 1.2s enemy phase (simulated delay, no AI yet) → Player turn. A turn banner below the map shows current phase. End Turn calls `tickBleedTimers()` → (await delay) → `resetMoves()` → `nextTurn()`.
 
 **GameBoard** — all map generation and game state lives in `src/views/GameBoard.vue`:
 - Map is an NxN grid (15–25) generated fresh each mission using a cluster flood-fill algorithm for cover
 - `cells[]` is a flat array of terrain types: `empty`, `half`, `hard`, `deploy` — built once on mount, never mutated
 - `soldierPositions` (reactive object) maps `cellIndex → soldier` — source of truth for where soldiers are
-- `highlightedCells` is a `Map<cellIndex, { movesUsed, apCost }>` — `apCost 1` = green (normal), `apCost 2` = orange (sprint)
+- `enemyPositions` (computed) maps `cellIndex → enemy` derived from `mission.enemies`
+- `deadEnemyCells` (ref Set) tracks cell indices of killed enemies for visual dimming (⚠️ dimming not rendering reliably — under investigation)
+- `highlightedCells` is a **computed** `Map<cellIndex, { movesUsed, apCost }>` derived from selected soldier's live stats — `apCost 1` = green (normal), `apCost 2` = orange (sprint). Being computed (not a ref) ensures stale movement tiles can never appear after AP is spent.
 - `getMovementRange(fromIndex, stats)` runs BFS — cover blocks movement, soldiers pass through each other; sprint tiles only shown when `canSprint`
 - Selecting a soldier shows movement range; soldier stays selected after moving for follow-up actions
-- End Turn calls `tickBleedTimers()` → `resetMoves()` → `nextTurn()` and clears selection
 
-**Icons** — `@phosphor-icons/vue` (Phosphor Icons). Currently used in the soldier HUD: `PhHeart` (health), `PhCrosshair` (ammo), `PhFootprints` (movement).
+**Icons** — `@phosphor-icons/vue` (Phosphor Icons). Used in the soldier HUD: `PhHeart` (health), `PhCrosshair` (ammo), `PhFootprints` (movement), `PhLightning` (AP).
 
 **SCSS** — Global styles and the CSS reset are in `src/styles/main.scss`, imported once in `src/main.js`. `src/styles/_variables.scss` holds design tokens (colors, spacing). These variables are auto-injected into every component's `<style lang="scss" scoped>` block via `vite.config.js` `additionalData`, so no `@use` import is needed inside components.
 
