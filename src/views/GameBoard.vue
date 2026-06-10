@@ -3,6 +3,7 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSquadStore } from '@/stores/squadStore.js'
 import { useMissionStore } from '@/stores/missionStore.js'
+import { PhHeart, PhCrosshair, PhFootprints } from '@phosphor-icons/vue'
 
 const router = useRouter()
 const squad = useSquadStore()
@@ -101,12 +102,8 @@ const selectedSoldier = computed(() =>
     : null
 )
 
-const selectedMovesLeft = computed(() =>
-  selectedSoldierId.value ? mission.soldierStats[selectedSoldierId.value]?.moves ?? null : null
-)
-
-const selectedMovesMax = computed(() =>
-  selectedSoldierId.value ? mission.soldierStats[selectedSoldierId.value]?.movesPerTurn ?? null : null
+const selectedStats = computed(() =>
+  selectedSoldierId.value ? mission.soldierStats[selectedSoldierId.value] ?? null : null
 )
 
 // BFS — cover blocks, soldiers pass through each other
@@ -150,7 +147,7 @@ function onCellClick(index) {
     } else {
       // Select
       selectedSoldierId.value = soldierHere.id
-      highlightedCells.value = getMovementRange(index, mission.soldierStats[soldierHere.id].moves)
+      highlightedCells.value = getMovementRange(index, selectedStats.value.moves)
     }
     return
   }
@@ -182,10 +179,25 @@ function onCellClick(index) {
       <button class="end-btn" @click="() => { mission.complete(); router.push('/after-mission') }">End Mission</button>
     </header>
     <div class="soldier-hud">
-      <template v-if="selectedSoldier">
-        <div class="swatch" :style="{ backgroundColor: selectedSoldier.color }" />
-        <span class="name">{{ selectedSoldier.name }}</span>
-        <span class="moves">{{ selectedMovesLeft }} / {{ selectedMovesMax }}</span>
+      <template v-if="selectedSoldier && selectedStats">
+        <div class="identity">
+          <div class="swatch" :style="{ backgroundColor: selectedSoldier.color }" />
+          <span class="name">{{ selectedSoldier.name }}</span>
+        </div>
+        <div class="stats">
+          <span class="stat">
+            <PhHeart :size="13" weight="fill" class="icon heart" />
+            {{ selectedStats.hp }} / {{ selectedStats.maxHp }}
+          </span>
+          <span class="stat">
+            <PhCrosshair :size="13" weight="fill" class="icon ammo" />
+            {{ selectedStats.ammo }} / {{ selectedStats.maxAmmo }}
+          </span>
+          <span class="stat">
+            <PhFootprints :size="13" weight="fill" class="icon moves" />
+            {{ selectedStats.moves }} / {{ selectedStats.movesPerTurn }}
+          </span>
+        </div>
       </template>
       <span v-else class="empty">No soldier selected</span>
     </div>
@@ -246,14 +258,19 @@ header {
 
 .soldier-hud {
   display: flex;
-  align-items: center;
-  gap: $spacing-sm;
-  height: 32px;
+  flex-direction: column;
+  gap: 4px;
   flex-shrink: 0;
 
+  .identity {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+  }
+
   .swatch {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border-radius: 3px;
     flex-shrink: 0;
   }
@@ -264,9 +281,26 @@ header {
     letter-spacing: 0.03em;
   }
 
-  .moves {
-    font-size: 0.85rem;
+  .stats {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding-left: 24px;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.8rem;
     color: $color-text-muted;
+
+    .icon {
+      flex-shrink: 0;
+      &.heart  { color: #e74c3c; }
+      &.ammo   { color: #f39c12; }
+      &.moves  { color: #3498db; }
+    }
   }
 
   .empty {
