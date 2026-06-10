@@ -12,10 +12,9 @@ const soldiers = squad.selected
 const SEED_RATE = 0.05
 const SPREAD_CHANCE = 0.55
 const DEPLOY_DEPTH = 3
-const MOVE_RANGE = 5
 
 const size = Math.floor(Math.random() * 11) + 15
-mission.start(size)
+mission.start(size, soldiers)
 
 // Build grid
 const grid = Array.from({ length: size }, () => Array(size).fill('empty'))
@@ -74,16 +73,12 @@ for (const edge of edges) {
 
 // cellIndex → soldier
 const soldierPositions = reactive({})
-// soldier.id → moves remaining this turn
-const movesRemaining = reactive({})
 
 if (deployZone) {
   deployZone.forEach(([r, c], i) => {
     grid[r][c] = 'deploy'
     if (soldiers[i]) {
-      const idx = r * size + c
-      soldierPositions[idx] = soldiers[i]
-      movesRemaining[soldiers[i].id] = MOVE_RANGE
+      soldierPositions[r * size + c] = soldiers[i]
     }
   })
 }
@@ -107,7 +102,11 @@ const selectedSoldier = computed(() =>
 )
 
 const selectedMovesLeft = computed(() =>
-  selectedSoldierId.value ? movesRemaining[selectedSoldierId.value] : null
+  selectedSoldierId.value ? mission.soldierStats[selectedSoldierId.value]?.moves ?? null : null
+)
+
+const selectedMovesMax = computed(() =>
+  selectedSoldierId.value ? mission.soldierStats[selectedSoldierId.value]?.movesPerTurn ?? null : null
 )
 
 // BFS — cover blocks, soldiers pass through each other
@@ -151,7 +150,7 @@ function onCellClick(index) {
     } else {
       // Select
       selectedSoldierId.value = soldierHere.id
-      highlightedCells.value = getMovementRange(index, movesRemaining[soldierHere.id])
+      highlightedCells.value = getMovementRange(index, mission.soldierStats[soldierHere.id].moves)
     }
     return
   }
@@ -164,9 +163,9 @@ function onCellClick(index) {
 
     delete soldierPositions[fromIndex]
     soldierPositions[index] = soldier
-    movesRemaining[soldier.id] -= movesUsed
+    mission.soldierStats[soldier.id].moves -= movesUsed
 
-    highlightedCells.value = getMovementRange(index, movesRemaining[soldier.id])
+    highlightedCells.value = getMovementRange(index, mission.soldierStats[soldier.id].moves)
     return
   }
 
@@ -186,7 +185,7 @@ function onCellClick(index) {
       <template v-if="selectedSoldier">
         <div class="swatch" :style="{ backgroundColor: selectedSoldier.color }" />
         <span class="name">{{ selectedSoldier.name }}</span>
-        <span class="moves">{{ selectedMovesLeft }} / {{ MOVE_RANGE }}</span>
+        <span class="moves">{{ selectedMovesLeft }} / {{ selectedMovesMax }}</span>
       </template>
       <span v-else class="empty">No soldier selected</span>
     </div>

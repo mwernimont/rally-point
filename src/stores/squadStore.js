@@ -4,12 +4,12 @@ import { defineStore } from 'pinia'
 const SQUAD_LIMIT = 4
 
 const ROSTER = [
-  { id: 'alpha',   name: 'Alpha',   color: '#e74c3c' },
-  { id: 'bravo',   name: 'Bravo',   color: '#3498db' },
-  { id: 'charlie', name: 'Charlie', color: '#2ecc71' },
-  { id: 'delta',   name: 'Delta',   color: '#f39c12' },
-  { id: 'echo',    name: 'Echo',    color: '#9b59b6' },
-  { id: 'foxtrot', name: 'Foxtrot', color: '#1abc9c' },
+  { id: 'alpha',   name: 'Alpha',   color: '#e74c3c', maxHp: 5, maxAmmo: 3, movesPerTurn: 5 },
+  { id: 'bravo',   name: 'Bravo',   color: '#3498db', maxHp: 5, maxAmmo: 3, movesPerTurn: 5 },
+  { id: 'charlie', name: 'Charlie', color: '#2ecc71', maxHp: 5, maxAmmo: 3, movesPerTurn: 5 },
+  { id: 'delta',   name: 'Delta',   color: '#f39c12', maxHp: 5, maxAmmo: 3, movesPerTurn: 5 },
+  { id: 'echo',    name: 'Echo',    color: '#9b59b6', maxHp: 5, maxAmmo: 3, movesPerTurn: 5 },
+  { id: 'foxtrot', name: 'Foxtrot', color: '#1abc9c', maxHp: 5, maxAmmo: 3, movesPerTurn: 5 },
 ]
 
 export const useSquadStore = defineStore('squad', () => {
