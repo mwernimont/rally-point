@@ -129,6 +129,7 @@ const enemyPositions = computed(() => {
 
 // Shooting
 const shootMode = ref(false)
+const deadEnemyCells = ref(new Set())
 
 function hasLineOfSight(fromIndex, toIndex) {
   let x0 = fromIndex % size, y0 = Math.floor(fromIndex / size)
@@ -166,6 +167,7 @@ function shoot(cellIndex) {
   mission.spendAmmo(selectedSoldierId.value)
   stats.actionsRemaining -= 1
   mission.applyEnemyDamage(enemy.id, 1)
+  if (!mission.enemies.find(e => e.id === enemy.id)) deadEnemyCells.value = new Set([...deadEnemyCells.value, cellIndex])
   shootMode.value = false
 }
 
@@ -354,6 +356,7 @@ function onCellClick(index) {
             sprint: highlightedCells.get(i)?.apCost === 2,
             active: selectedIndex === i,
             enemy: !!enemyPositions[i],
+            'enemy-dead': deadEnemyCells.has(i),
             targetable: shootableTargets.has(i),
           }]"
           :style="soldierPositions[i] ? { backgroundColor: soldierPositions[i].color } : {}"
@@ -572,6 +575,11 @@ header {
   &.enemy {
     background-color: #e74c3c;
     box-shadow: inset 0 0 0 2px #000;
+  }
+
+  &.enemy-dead {
+    background-color: #5a1a1a;
+    opacity: 0.4;
   }
 
   &.targetable {
