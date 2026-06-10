@@ -184,10 +184,17 @@ function getMovementRange(fromIndex, stats) {
   return reachable
 }
 
-function endTurn() {
+const currentPhase = ref('player')
+
+async function endTurn() {
   selectedSoldierId.value = null
   highlightedCells.value = new Map()
   mission.tickBleedTimers()
+
+  currentPhase.value = 'enemy'
+  await new Promise(resolve => setTimeout(resolve, 1200))
+  currentPhase.value = 'player'
+
   mission.resetMoves()
   mission.nextTurn()
 }
@@ -248,7 +255,7 @@ function onCellClick(index) {
     <header>
       <span class="map-size">{{ size }}×{{ size }}</span>
       <div class="header-actions">
-        <button :class="['end-btn', { ready: mission.allActionsSpent }]" @click="endTurn">End Turn</button>
+        <button :class="['end-btn', { ready: mission.allActionsSpent }]" :disabled="currentPhase === 'enemy'" @click="endTurn">End Turn</button>
         <button class="end-btn" @click="() => { mission.complete(); router.push('/after-mission') }">End Mission</button>
       </div>
     </header>
@@ -278,6 +285,10 @@ function onCellClick(index) {
         </div>
       </template>
       <span v-else class="empty">No soldier selected</span>
+    </div>
+
+    <div class="turn-banner" :class="currentPhase">
+      {{ currentPhase === 'player' ? "Player's Turn" : "Enemy's Turn" }}
     </div>
 
     <div class="grid-viewport">
@@ -398,6 +409,28 @@ header {
   .empty {
     font-size: 0.85rem;
     color: $color-text-muted;
+  }
+}
+
+.turn-banner {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: $spacing-xs $spacing-md;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: background-color 0.2s, color 0.2s;
+
+  &.player {
+    background-color: rgba($color-primary, 0.15);
+    color: $color-primary;
+  }
+
+  &.enemy {
+    background-color: rgba(#e74c3c, 0.15);
+    color: #e74c3c;
   }
 }
 
