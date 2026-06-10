@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import SoldierCard from '@/components/SoldierCard.vue'
+import { selectedSoldiers } from '@/store/squad.js'
 
 const router = useRouter()
 
@@ -28,6 +29,11 @@ function select(soldier) {
 
 function deselect(soldier) {
   selected.value = selected.value.filter(s => s.id !== soldier.id)
+}
+
+function deploy() {
+  selectedSoldiers.value = selected.value
+  router.push({ name: 'Game' })
 }
 </script>
 
@@ -62,7 +68,7 @@ function deselect(soldier) {
       </div>
     </section>
 
-    <button class="deploy-btn" :disabled="selected.length === 0" @click="router.push('/game')">
+    <button class="deploy-btn" :disabled="selected.length === 0" @click="deploy()">
       Deploy ({{ selected.length }})
     </button>
   </div>

@@ -1,7 +1,9 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { selectedSoldiers } from '@/store/squad.js'
 
 const router = useRouter()
+const soldiers = selectedSoldiers.value
 
 const SEED_RATE = 0.05
 const SPREAD_CHANCE = 0.55
@@ -72,8 +74,12 @@ for (const edge of edges) {
   if (deployZone) break
 }
 
+const soldierPlacements = {}
 if (deployZone) {
-  deployZone.forEach(([r, c]) => { grid[r][c] = 'deploy' })
+  deployZone.forEach(([r, c], i) => {
+    grid[r][c] = 'deploy'
+    if (soldiers[i]) soldierPlacements[r * size + c] = soldiers[i]
+  })
 }
 
 const cells = grid.flat()
@@ -87,7 +93,13 @@ const cells = grid.flat()
     </header>
     <div class="grid-viewport">
       <div class="grid" :style="{ gridTemplateColumns: `repeat(${size}, 25px)` }">
-        <div v-for="(cell, i) in cells" :key="i" class="cell" :class="cell" />
+        <div
+          v-for="(cell, i) in cells"
+          :key="i"
+          class="cell"
+          :class="cell"
+          :style="soldierPlacements[i] ? { backgroundColor: soldierPlacements[i].color } : {}"
+        />
       </div>
     </div>
   </div>
@@ -144,6 +156,7 @@ header {
 }
 
 .cell {
+  position: relative;
   width: 25px;
   height: 25px;
   background-color: white;
