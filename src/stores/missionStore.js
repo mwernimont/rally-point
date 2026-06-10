@@ -91,6 +91,10 @@ export const useMissionStore = defineStore('mission', () => {
     }
   }
 
+  function spawnEnemies(enemyList) {
+    enemies.value = enemyList
+  }
+
   function complete() {
     status.value = 'complete'
   }
@@ -115,7 +119,7 @@ export const useMissionStore = defineStore('mission', () => {
   return {
     status, mapSize, turnCount, objectiveMet, enemies, soldierStats,
     isActive, isOver, enemyCount, allActionsSpent,
-    start, complete, fail, nextTurn, reset,
+    start, spawnEnemies, complete, fail, nextTurn, reset,
     applyDamage, tickBleedTimers, spendAmmo, resetMoves,
     INSTANT_DEATH_FLOOR, BLEED_ROUNDS, ACTIONS_PER_TURN, SPRINT_RANGE,
   }

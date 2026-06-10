@@ -3,7 +3,7 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSquadStore } from '@/stores/squadStore.js'
 import { useMissionStore } from '@/stores/missionStore.js'
-import { PhHeart, PhCrosshair, PhFootprints } from '@phosphor-icons/vue'
+import { PhHeart, PhCrosshair, PhFootprints, PhLightning } from '@phosphor-icons/vue'
 
 const router = useRouter()
 const squad = useSquadStore()
@@ -13,6 +13,7 @@ const soldiers = squad.selected
 const SEED_RATE = 0.05
 const SPREAD_CHANCE = 0.55
 const DEPLOY_DEPTH = 3
+const ENEMY_DEPLOY_DEPTH = 4
 
 const size = Math.floor(Math.random() * 11) + 15
 mission.start(size, soldiers)
@@ -65,11 +66,14 @@ function findDeployZone(edge) {
   return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null
 }
 
+const OPPOSITE_EDGE = { north: 'south', south: 'north', east: 'west', west: 'east' }
+
 const edges = ['north', 'south', 'east', 'west'].sort(() => Math.random() - 0.5)
 let deployZone = null
+let playerEdge = null
 for (const edge of edges) {
   deployZone = findDeployZone(edge)
-  if (deployZone) break
+  if (deployZone) { playerEdge = edge; break }
 }
 
 // cellIndex → soldier
@@ -85,6 +89,43 @@ if (deployZone) {
 }
 
 const cells = grid.flat()
+
+// Enemy spawn — opposite edge from player, divided into lanes for spread
+const enemyEdge = playerEdge ? OPPOSITE_EDGE[playerEdge] : 'south'
+const enemyCount = Math.floor(Math.random() * 5) + 4
+const spawnedEnemies = []
+const occupiedEnemyCells = new Set()
+const laneCount = size / enemyCount
+
+for (let i = 0; i < enemyCount; i++) {
+  const laneStart = Math.floor(i * laneCount)
+  const laneEnd = Math.floor((i + 1) * laneCount)
+  const candidates = []
+
+  for (let depth = 0; depth < ENEMY_DEPLOY_DEPTH; depth++) {
+    for (let lane = laneStart; lane < laneEnd; lane++) {
+      let r, c
+      if (enemyEdge === 'north')  { r = depth;              c = lane }
+      else if (enemyEdge === 'south') { r = size - 1 - depth;   c = lane }
+      else if (enemyEdge === 'west')  { r = lane;               c = depth }
+      else                            { r = lane;               c = size - 1 - depth }
+      const idx = r * size + c
+      if (cells[idx] === 'empty' && !occupiedEnemyCells.has(idx)) candidates.push(idx)
+    }
+  }
+
+  if (!candidates.length) continue
+  const cellIndex = candidates[Math.floor(Math.random() * candidates.length)]
+  occupiedEnemyCells.add(cellIndex)
+  spawnedEnemies.push({ id: `enemy-${i}`, cellIndex })
+}
+mission.spawnEnemies(spawnedEnemies)
+
+const enemyPositions = computed(() => {
+  const map = {}
+  for (const e of mission.enemies) map[e.cellIndex] = e
+  return map
+})
 
 // Movement
 const selectedSoldierId = ref(null)
@@ -230,6 +271,10 @@ function onCellClick(index) {
             <PhFootprints :size="13" weight="fill" class="icon moves" />
             {{ selectedStats.moves }} / {{ selectedStats.movesPerTurn }}
           </span>
+          <span class="stat">
+            <PhLightning :size="13" weight="fill" class="icon ap" />
+            {{ selectedStats.actionsRemaining }} / {{ mission.ACTIONS_PER_TURN }}
+          </span>
         </div>
       </template>
       <span v-else class="empty">No soldier selected</span>
@@ -245,6 +290,7 @@ function onCellClick(index) {
             reachable: highlightedCells.get(i)?.apCost === 1,
             sprint: highlightedCells.get(i)?.apCost === 2,
             active: selectedIndex === i,
+            enemy: !!enemyPositions[i],
           }]"
           :style="soldierPositions[i] ? { backgroundColor: soldierPositions[i].color } : {}"
           @click="onCellClick(i)"
@@ -345,6 +391,7 @@ header {
       &.heart  { color: #e74c3c; }
       &.ammo   { color: #f39c12; }
       &.moves  { color: #3498db; }
+      &.ap     { color: #f1c40f; }
     }
   }
 
@@ -404,6 +451,11 @@ header {
   &.active {
     box-shadow: 0 0 0 2px white;
     z-index: 1;
+  }
+
+  &.enemy {
+    background-color: #e74c3c;
+    box-shadow: inset 0 0 0 2px #000;
   }
 }
 </style>
