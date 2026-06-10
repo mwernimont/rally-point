@@ -127,9 +127,57 @@ const enemyPositions = computed(() => {
   return map
 })
 
+// Shooting
+const shootMode = ref(false)
+
+function hasLineOfSight(fromIndex, toIndex) {
+  let x0 = fromIndex % size, y0 = Math.floor(fromIndex / size)
+  const x1 = toIndex % size,  y1 = Math.floor(toIndex / size)
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0)
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1
+  let err = dx - dy
+  while (!(x0 === x1 && y0 === y1)) {
+    const e2 = 2 * err
+    if (e2 > -dy) { err -= dy; x0 += sx }
+    if (e2 < dx)  { err += dx; y0 += sy }
+    if (x0 === x1 && y0 === y1) break
+    if (cells[y0 * size + x0] === 'hard') return false
+  }
+  return true
+}
+
+const shootableTargets = computed(() => {
+  if (!shootMode.value || selectedIndex.value == null) return new Set()
+  const targets = new Set()
+  for (const e of mission.enemies) {
+    if (hasLineOfSight(selectedIndex.value, e.cellIndex)) targets.add(e.cellIndex)
+  }
+  return targets
+})
+
+const hasValidTargets = computed(() => {
+  if (selectedIndex.value == null) return false
+  return mission.enemies.some(e => hasLineOfSight(selectedIndex.value, e.cellIndex))
+})
+
+function shoot(cellIndex) {
+  const enemy = enemyPositions.value[cellIndex]
+  const stats = mission.soldierStats[selectedSoldierId.value]
+  mission.spendAmmo(selectedSoldierId.value)
+  stats.actionsRemaining -= 1
+  mission.applyEnemyDamage(enemy.id, 1)
+  shootMode.value = false
+}
+
 // Movement
 const selectedSoldierId = ref(null)
-const highlightedCells = ref(new Map()) // cellIndex → movesUsed to reach it
+
+const highlightedCells = computed(() => {
+  if (!selectedSoldierId.value || selectedIndex.value == null || shootMode.value) return new Map()
+  const stats = mission.soldierStats[selectedSoldierId.value]
+  if (!stats) return new Map()
+  return getMovementRange(selectedIndex.value, stats)
+})
 
 const selectedIndex = computed(() => {
   if (!selectedSoldierId.value) return null
@@ -188,7 +236,7 @@ const currentPhase = ref('player')
 
 async function endTurn() {
   selectedSoldierId.value = null
-  highlightedCells.value = new Map()
+  shootMode.value = false
   mission.tickBleedTimers()
 
   currentPhase.value = 'enemy'
@@ -200,19 +248,18 @@ async function endTurn() {
 }
 
 function onCellClick(index) {
+  // Shoot mode — fire at target or cancel
+  if (shootMode.value) {
+    if (shootableTargets.value.has(index)) shoot(index)
+    else shootMode.value = false
+    return
+  }
+
   const soldierHere = soldierPositions[index]
 
-  // Clicked a soldier
+  // Clicked a soldier — toggle selection
   if (soldierHere) {
-    if (selectedSoldierId.value === soldierHere.id) {
-      // Deselect
-      selectedSoldierId.value = null
-      highlightedCells.value = new Map()
-    } else {
-      // Select
-      selectedSoldierId.value = soldierHere.id
-      highlightedCells.value = getMovementRange(index, mission.soldierStats[soldierHere.id])
-    }
+    selectedSoldierId.value = selectedSoldierId.value === soldierHere.id ? null : soldierHere.id
     return
   }
 
@@ -231,7 +278,6 @@ function onCellClick(index) {
       stats.actionsRemaining = 0
       stats.hasMoved = true
       stats.moves = Math.max(0, stats.moves - movesUsed)
-      highlightedCells.value = new Map()
     } else {
       // Normal move — deduct AP once on first move, then movement is free
       if (!stats.hasMoved) {
@@ -239,14 +285,12 @@ function onCellClick(index) {
         stats.hasMoved = true
       }
       stats.moves -= movesUsed
-      highlightedCells.value = getMovementRange(index, stats)
     }
     return
   }
 
   // Clicked empty non-highlighted tile — deselect
   selectedSoldierId.value = null
-  highlightedCells.value = new Map()
 }
 </script>
 
@@ -283,6 +327,14 @@ function onCellClick(index) {
             {{ selectedStats.actionsRemaining }} / {{ mission.ACTIONS_PER_TURN }}
           </span>
         </div>
+        <button
+          class="shoot-btn"
+          :class="{ active: shootMode }"
+          :disabled="selectedStats.actionsRemaining <= 0 || selectedStats.ammo <= 0 || !hasValidTargets"
+          @click="shootMode = !shootMode"
+        >
+          <PhCrosshair :size="13" weight="fill" /> Shoot
+        </button>
       </template>
       <span v-else class="empty">No soldier selected</span>
     </div>
@@ -302,6 +354,7 @@ function onCellClick(index) {
             sprint: highlightedCells.get(i)?.apCost === 2,
             active: selectedIndex === i,
             enemy: !!enemyPositions[i],
+            targetable: shootableTargets.has(i),
           }]"
           :style="soldierPositions[i] ? { backgroundColor: soldierPositions[i].color } : {}"
           @click="onCellClick(i)"
@@ -406,6 +459,36 @@ header {
     }
   }
 
+  .shoot-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 4px;
+    margin-left: 24px;
+    padding: $spacing-xs $spacing-sm;
+    background: none;
+    border: 1px solid #e74c3c;
+    border-radius: 4px;
+    color: #e74c3c;
+    font-size: 0.8rem;
+    cursor: pointer;
+    width: fit-content;
+
+    &:hover:not(:disabled) {
+      background-color: rgba(#e74c3c, 0.15);
+    }
+
+    &.active {
+      background-color: rgba(#e74c3c, 0.25);
+      box-shadow: 0 0 6px rgba(#e74c3c, 0.5);
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+  }
+
   .empty {
     font-size: 0.85rem;
     color: $color-text-muted;
@@ -489,6 +572,16 @@ header {
   &.enemy {
     background-color: #e74c3c;
     box-shadow: inset 0 0 0 2px #000;
+  }
+
+  &.targetable {
+    background-color: #e74c3c;
+    box-shadow: inset 0 0 0 2px #fff, 0 0 6px rgba(#e74c3c, 0.8);
+    cursor: crosshair;
+
+    &:hover {
+      background-color: #ff6b5b;
+    }
   }
 }
 </style>

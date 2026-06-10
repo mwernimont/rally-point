@@ -97,6 +97,16 @@ export const useMissionStore = defineStore('mission', () => {
     }
   }
 
+  function applyEnemyDamage(enemyId, damage) {
+    const stats = enemyStats.value[enemyId]
+    if (!stats || stats.status === 'dead') return
+    stats.hp -= damage
+    if (stats.hp <= 0) {
+      stats.status = 'dead'
+      enemies.value = enemies.value.filter(e => e.id !== enemyId)
+    }
+  }
+
   function spawnEnemies(enemyList) {
     enemies.value = enemyList
     enemyStats.value = {}
@@ -140,7 +150,7 @@ export const useMissionStore = defineStore('mission', () => {
     status, mapSize, turnCount, objectiveMet, enemies, enemyStats, soldierStats,
     isActive, isOver, enemyCount, allActionsSpent,
     start, spawnEnemies, complete, fail, nextTurn, reset,
-    applyDamage, tickBleedTimers, spendAmmo, resetMoves,
+    applyDamage, applyEnemyDamage, tickBleedTimers, spendAmmo, resetMoves,
     INSTANT_DEATH_FLOOR, BLEED_ROUNDS, ACTIONS_PER_TURN, SPRINT_RANGE,
     ENEMY_MAX_HP, ENEMY_MAX_AMMO, ENEMY_ACTIONS_PER_TURN, ENEMY_MOVES_PER_TURN,
   }
