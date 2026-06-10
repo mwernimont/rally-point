@@ -7,7 +7,7 @@ const router = useRouter()
 <template>
   <div class="main-menu">
     <h1>Rally Point</h1>
-    <button @click="router.push('/game')">Start Game</button>
+    <button @click="router.push('/squad-select')">Start Game</button>
   </div>
 </template>
 

@@ -5,18 +5,19 @@ const router = useRouter()
 </script>
 
 <template>
-  <div class="game-board">
-    <h2>Game Board</h2>
-    <button @click="router.push('/after-mission')">End Mission</button>
+  <div class="squad-select">
+    <h2>Squad Select</h2>
+    <button @click="router.push('/game')">Deploy</button>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.game-board {
+.squad-select {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: $spacing-lg;
+  justify-content: center;
+  height: 100vh;
   gap: $spacing-md;
 }
 </style>
