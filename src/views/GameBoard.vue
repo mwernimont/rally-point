@@ -1,15 +1,19 @@
 <script setup>
 import { useRouter } from 'vue-router'
-import { selectedSoldiers } from '@/store/squad.js'
+import { useSquadStore } from '@/stores/squadStore.js'
+import { useMissionStore } from '@/stores/missionStore.js'
 
 const router = useRouter()
-const soldiers = selectedSoldiers.value
+const squad = useSquadStore()
+const mission = useMissionStore()
+const soldiers = squad.selected
 
 const SEED_RATE = 0.05
 const SPREAD_CHANCE = 0.55
 const DEPLOY_DEPTH = 3
 
 const size = Math.floor(Math.random() * 11) + 15
+mission.start(size)
 
 // Build grid
 const grid = Array.from({ length: size }, () => Array(size).fill('empty'))
@@ -89,7 +93,7 @@ const cells = grid.flat()
   <div class="game-board">
     <header>
       <span class="map-size">{{ size }}×{{ size }}</span>
-      <button class="end-btn" @click="router.push('/after-mission')">End Mission</button>
+      <button class="end-btn" @click="() => { mission.complete(); router.push('/after-mission') }">End Mission</button>
     </header>
     <div class="grid-viewport">
       <div class="grid" :style="{ gridTemplateColumns: `repeat(${size}, 25px)` }">

@@ -1,38 +1,12 @@
 <script setup>
-import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useSquadStore } from '@/stores/squadStore.js'
 import SoldierCard from '@/components/SoldierCard.vue'
-import { selectedSoldiers } from '@/store/squad.js'
 
 const router = useRouter()
-
-const ALL_SOLDIERS = [
-  { id: 'alpha',   name: 'Alpha',   color: '#e74c3c' },
-  { id: 'bravo',   name: 'Bravo',   color: '#3498db' },
-  { id: 'charlie', name: 'Charlie', color: '#2ecc71' },
-  { id: 'delta',   name: 'Delta',   color: '#f39c12' },
-  { id: 'echo',    name: 'Echo',    color: '#9b59b6' },
-  { id: 'foxtrot', name: 'Foxtrot', color: '#1abc9c' },
-]
-
-const selected = ref([])
-const available = computed(() =>
-  ALL_SOLDIERS.filter(s => !selected.value.find(sel => sel.id === s.id))
-)
-
-const SQUAD_LIMIT = 4
-
-function select(soldier) {
-  if (selected.value.length >= SQUAD_LIMIT) return
-  selected.value = [...selected.value, soldier]
-}
-
-function deselect(soldier) {
-  selected.value = selected.value.filter(s => s.id !== soldier.id)
-}
+const squad = useSquadStore()
 
 function deploy() {
-  selectedSoldiers.value = selected.value
   router.push({ name: 'Game' })
 }
 </script>
@@ -43,33 +17,33 @@ function deploy() {
 
     <section class="row">
       <h2>Available Soldiers</h2>
-      <div class="cards" :class="{ 'at-limit': selected.length >= SQUAD_LIMIT }">
+      <div class="cards" :class="{ 'at-limit': squad.isAtLimit }">
         <SoldierCard
-          v-for="soldier in available"
+          v-for="soldier in squad.available"
           :key="soldier.id"
           :soldier="soldier"
           size="sm"
-          @click="select(soldier)"
+          @click="squad.select(soldier)"
         />
       </div>
     </section>
 
     <section class="row">
-      <h2>Selected Soldiers <span class="limit-label">{{ selected.length }} / {{ SQUAD_LIMIT }}</span></h2>
+      <h2>Selected Soldiers <span class="limit-label">{{ squad.selected.length }} / {{ squad.SQUAD_LIMIT }}</span></h2>
       <div class="cards">
         <SoldierCard
-          v-for="soldier in selected"
+          v-for="soldier in squad.selected"
           :key="soldier.id"
           :soldier="soldier"
           size="lg"
-          @click="deselect(soldier)"
+          @click="squad.deselect(soldier)"
         />
-        <p v-if="selected.length === 0" class="empty">No soldiers selected</p>
+        <p v-if="squad.selected.length === 0" class="empty">No soldiers selected</p>
       </div>
     </section>
 
-    <button class="deploy-btn" :disabled="selected.length === 0" @click="deploy()">
-      Deploy ({{ selected.length }})
+    <button class="deploy-btn" :disabled="squad.selected.length === 0" @click="deploy()">
+      Deploy ({{ squad.selected.length }})
     </button>
   </div>
 </template>
