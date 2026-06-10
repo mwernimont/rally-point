@@ -107,7 +107,13 @@ const selectedStats = computed(() =>
 )
 
 // BFS — cover blocks, soldiers pass through each other
-function getMovementRange(fromIndex, moves) {
+// Returns Map<cellIndex, { movesUsed, apCost }> where apCost 2 = sprint tile
+function getMovementRange(fromIndex, stats) {
+  if (stats.actionsRemaining === 0 || stats.moves === 0) return new Map()
+
+  const canSprint = stats.actionsRemaining >= 2 && !stats.hasMoved
+  const maxRange = canSprint ? mission.SPRINT_RANGE : stats.moves
+
   const fromRow = Math.floor(fromIndex / size)
   const fromCol = fromIndex % size
   const reachable = new Map()
@@ -116,7 +122,7 @@ function getMovementRange(fromIndex, moves) {
 
   while (bfsQueue.length) {
     const { row, col, used } = bfsQueue.shift()
-    if (used >= moves) continue
+    if (used >= maxRange) continue
 
     for (const [dr, dc] of dirs) {
       const nr = row + dr
@@ -128,11 +134,21 @@ function getMovementRange(fromIndex, moves) {
       if (cells[ni] === 'half' || cells[ni] === 'hard') continue
 
       visited.add(key)
-      reachable.set(ni, used + 1)
-      bfsQueue.push({ row: nr, col: nc, used: used + 1 })
+      const movesUsed = used + 1
+      const apCost = canSprint && movesUsed > stats.movesPerTurn ? 2 : 1
+      reachable.set(ni, { movesUsed, apCost })
+      bfsQueue.push({ row: nr, col: nc, used: movesUsed })
     }
   }
   return reachable
+}
+
+function endTurn() {
+  selectedSoldierId.value = null
+  highlightedCells.value = new Map()
+  mission.tickBleedTimers()
+  mission.resetMoves()
+  mission.nextTurn()
 }
 
 function onCellClick(index) {
@@ -147,7 +163,7 @@ function onCellClick(index) {
     } else {
       // Select
       selectedSoldierId.value = soldierHere.id
-      highlightedCells.value = getMovementRange(index, selectedStats.value.moves)
+      highlightedCells.value = getMovementRange(index, mission.soldierStats[soldierHere.id])
     }
     return
   }
@@ -156,13 +172,27 @@ function onCellClick(index) {
   if (selectedSoldierId.value && highlightedCells.value.has(index)) {
     const fromIndex = selectedIndex.value
     const soldier = soldierPositions[fromIndex]
-    const movesUsed = highlightedCells.value.get(index)
+    const { movesUsed, apCost } = highlightedCells.value.get(index)
+    const stats = mission.soldierStats[soldier.id]
 
     delete soldierPositions[fromIndex]
     soldierPositions[index] = soldier
-    mission.soldierStats[soldier.id].moves -= movesUsed
 
-    highlightedCells.value = getMovementRange(index, mission.soldierStats[soldier.id].moves)
+    if (apCost === 2) {
+      // Sprint — spends entire action budget
+      stats.actionsRemaining = 0
+      stats.hasMoved = true
+      stats.moves = Math.max(0, stats.moves - movesUsed)
+      highlightedCells.value = new Map()
+    } else {
+      // Normal move — deduct AP once on first move, then movement is free
+      if (!stats.hasMoved) {
+        stats.actionsRemaining -= 1
+        stats.hasMoved = true
+      }
+      stats.moves -= movesUsed
+      highlightedCells.value = getMovementRange(index, stats)
+    }
     return
   }
 
@@ -176,7 +206,10 @@ function onCellClick(index) {
   <div class="game-board">
     <header>
       <span class="map-size">{{ size }}×{{ size }}</span>
-      <button class="end-btn" @click="() => { mission.complete(); router.push('/after-mission') }">End Mission</button>
+      <div class="header-actions">
+        <button :class="['end-btn', { ready: mission.allActionsSpent }]" @click="endTurn">End Turn</button>
+        <button class="end-btn" @click="() => { mission.complete(); router.push('/after-mission') }">End Mission</button>
+      </div>
     </header>
     <div class="soldier-hud">
       <template v-if="selectedSoldier && selectedStats">
@@ -209,7 +242,8 @@ function onCellClick(index) {
           :key="i"
           class="cell"
           :class="[cell, {
-            reachable: highlightedCells.has(i),
+            reachable: highlightedCells.get(i)?.apCost === 1,
+            sprint: highlightedCells.get(i)?.apCost === 2,
             active: selectedIndex === i,
           }]"
           :style="soldierPositions[i] ? { backgroundColor: soldierPositions[i].color } : {}"
@@ -237,6 +271,11 @@ header {
   flex-shrink: 0;
 }
 
+.header-actions {
+  display: flex;
+  gap: $spacing-sm;
+}
+
 .map-size {
   font-size: 0.85rem;
   color: $color-text-muted;
@@ -253,6 +292,12 @@ header {
   &:hover {
     border-color: $color-primary;
     color: $color-primary;
+  }
+
+  &.ready {
+    border-color: $color-primary;
+    color: $color-primary;
+    box-shadow: 0 0 6px rgba($color-primary, 0.4);
   }
 }
 
@@ -341,6 +386,16 @@ header {
 
     &:hover {
       background-color: #eeff44;
+      box-shadow: 0 0 0 2px white;
+      z-index: 1;
+    }
+  }
+
+  &.sprint {
+    background-color: #f0a830;
+
+    &:hover {
+      background-color: #ffc045;
       box-shadow: 0 0 0 2px white;
       z-index: 1;
     }
