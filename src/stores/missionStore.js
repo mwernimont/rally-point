@@ -87,6 +87,13 @@ export const useMissionStore = defineStore('mission', () => {
     stats.ammo--
   }
 
+  function reload(soldierId) {
+    const stats = soldierStats.value[soldierId]
+    if (!stats || stats.actionsRemaining <= 0 || stats.ammo >= stats.maxAmmo) return
+    stats.ammo = stats.maxAmmo
+    stats.actionsRemaining -= 1
+  }
+
   // Call at start of each new turn to restore movement and actions
   function resetMoves() {
     for (const stats of Object.values(soldierStats.value)) {
@@ -119,8 +126,18 @@ export const useMissionStore = defineStore('mission', () => {
         moves: ENEMY_MOVES_PER_TURN,
         movesPerTurn: ENEMY_MOVES_PER_TURN,
         actionsRemaining: ENEMY_ACTIONS_PER_TURN,
+        hasMoved: false,
         status: 'active',
       }
+    }
+  }
+
+  function resetEnemyMoves() {
+    for (const stats of Object.values(enemyStats.value)) {
+      if (stats.status !== 'active') continue
+      stats.moves = stats.movesPerTurn
+      stats.actionsRemaining = ENEMY_ACTIONS_PER_TURN
+      stats.hasMoved = false
     }
   }
 
@@ -150,7 +167,7 @@ export const useMissionStore = defineStore('mission', () => {
     status, mapSize, turnCount, objectiveMet, enemies, enemyStats, soldierStats,
     isActive, isOver, enemyCount, allActionsSpent,
     start, spawnEnemies, complete, fail, nextTurn, reset,
-    applyDamage, applyEnemyDamage, tickBleedTimers, spendAmmo, resetMoves,
+    applyDamage, applyEnemyDamage, tickBleedTimers, spendAmmo, reload, resetMoves, resetEnemyMoves,
     INSTANT_DEATH_FLOOR, BLEED_ROUNDS, ACTIONS_PER_TURN, SPRINT_RANGE,
     ENEMY_MAX_HP, ENEMY_MAX_AMMO, ENEMY_ACTIONS_PER_TURN, ENEMY_MOVES_PER_TURN,
   }

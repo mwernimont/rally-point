@@ -3,7 +3,7 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSquadStore } from '@/stores/squadStore.js'
 import { useMissionStore } from '@/stores/missionStore.js'
-import { PhHeart, PhCrosshair, PhFootprints, PhLightning } from '@phosphor-icons/vue'
+import { PhHeart, PhCrosshair, PhFootprints, PhLightning, PhArrowCounterClockwise } from '@phosphor-icons/vue'
 
 const router = useRouter()
 const squad = useSquadStore()
@@ -236,6 +236,90 @@ function getMovementRange(fromIndex, stats, blockedPositions = {}) {
 }
 
 const currentPhase = ref('player')
+const missionWon = computed(() => mission.enemies.length === 0)
+
+// Enemy AI helpers
+const delay = ms => new Promise(r => setTimeout(r, ms))
+
+function manhattanDistance(a, b) {
+  return Math.abs(Math.floor(a / size) - Math.floor(b / size)) + Math.abs(a % size - b % size)
+}
+
+function nearestActiveSoldier(fromIndex) {
+  let nearest = null, minDist = Infinity
+  for (const [idx, soldier] of Object.entries(soldierPositions)) {
+    const stats = mission.soldierStats[soldier.id]
+    if (!stats || stats.status !== 'active') continue
+    const dist = manhattanDistance(fromIndex, parseInt(idx))
+    if (dist < minDist) { minDist = dist; nearest = { soldier, cellIndex: parseInt(idx) } }
+  }
+  return nearest
+}
+
+function nearestSoldierInLOS(fromIndex) {
+  let nearest = null, minDist = Infinity
+  for (const [idx, soldier] of Object.entries(soldierPositions)) {
+    const stats = mission.soldierStats[soldier.id]
+    if (!stats || stats.status !== 'active') continue
+    const cellIndex = parseInt(idx)
+    if (!hasLineOfSight(fromIndex, cellIndex)) continue
+    const dist = manhattanDistance(fromIndex, cellIndex)
+    if (dist < minDist) { minDist = dist; nearest = { soldier, cellIndex } }
+  }
+  return nearest
+}
+
+function bestMoveToward(reachable, targetIndex) {
+  let bestCell = null, minDist = Infinity
+  for (const cellIdx of reachable.keys()) {
+    const d = manhattanDistance(cellIdx, targetIndex)
+    if (d < minDist) { minDist = d; bestCell = cellIdx }
+  }
+  return bestCell
+}
+
+async function runEnemyTurn() {
+  mission.resetEnemyMoves()
+
+  for (const enemy of [...mission.enemies]) {
+    const stats = mission.enemyStats[enemy.id]
+    if (!stats || stats.status !== 'active') continue
+
+    // Build blocked map: all soldiers + all other enemies
+    const blocked = { ...soldierPositions }
+    for (const e of mission.enemies) {
+      if (e.id !== enemy.id) blocked[e.cellIndex] = true
+    }
+
+    // Move toward nearest active soldier (1 AP)
+    if (stats.actionsRemaining >= 1 && stats.moves > 0) {
+      const target = nearestActiveSoldier(enemy.cellIndex)
+      if (target) {
+        const reachable = getMovementRange(enemy.cellIndex, { ...stats, hasMoved: true }, blocked)
+        const best = bestMoveToward(reachable, target.cellIndex)
+        if (best != null) {
+          const { movesUsed } = reachable.get(best)
+          enemy.cellIndex = best
+          stats.moves -= movesUsed
+          stats.actionsRemaining -= 1
+          stats.hasMoved = true
+          await delay(150)
+        }
+      }
+    }
+
+    // Shoot nearest soldier in LOS (1 AP)
+    if (stats.actionsRemaining >= 1 && stats.ammo > 0) {
+      const losTarget = nearestSoldierInLOS(enemy.cellIndex)
+      if (losTarget) {
+        stats.ammo -= 1
+        stats.actionsRemaining -= 1
+        mission.applyDamage(losTarget.soldier.id, 1)
+        await delay(150)
+      }
+    }
+  }
+}
 
 async function endTurn() {
   selectedSoldierId.value = null
@@ -243,7 +327,7 @@ async function endTurn() {
   mission.tickBleedTimers()
 
   currentPhase.value = 'enemy'
-  await new Promise(resolve => setTimeout(resolve, 1200))
+  await runEnemyTurn()
   currentPhase.value = 'player'
 
   mission.resetMoves()
@@ -302,8 +386,8 @@ function onCellClick(index) {
     <header>
       <span class="map-size">{{ size }}×{{ size }}</span>
       <div class="header-actions">
-        <button :class="['end-btn', { ready: mission.allActionsSpent }]" :disabled="currentPhase === 'enemy'" @click="endTurn">End Turn</button>
-        <button class="end-btn" @click="() => { mission.complete(); router.push('/after-mission') }">End Mission</button>
+        <button :class="['end-btn', { ready: mission.allActionsSpent }]" :disabled="currentPhase === 'enemy' || missionWon" @click="endTurn">End Turn</button>
+        <button class="end-btn" @click="router.push('/game')">Restart</button>
       </div>
     </header>
     <div class="soldier-hud">
@@ -338,6 +422,13 @@ function onCellClick(index) {
         >
           <PhCrosshair :size="13" weight="fill" /> Shoot
         </button>
+        <button
+          class="reload-btn"
+          :disabled="selectedStats.actionsRemaining <= 0 || selectedStats.ammo >= selectedStats.maxAmmo"
+          @click="mission.reload(selectedSoldierId)"
+        >
+          <PhArrowCounterClockwise :size="13" weight="fill" /> Reload
+        </button>
       </template>
       <span v-else class="empty">No soldier selected</span>
     </div>
@@ -366,6 +457,18 @@ function onCellClick(index) {
         />
       </div>
     </div>
+
+    <Transition name="victory">
+      <div v-if="missionWon" class="victory-overlay">
+        <div class="victory-box">
+          <h2>Mission Complete</h2>
+          <div class="victory-actions">
+            <button @click="router.push('/game')">Play Again</button>
+            <button @click="router.push('/')">Main Menu</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -464,7 +567,7 @@ header {
     }
   }
 
-  .shoot-btn {
+  .shoot-btn, .reload-btn {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -472,12 +575,20 @@ header {
     margin-left: 24px;
     padding: $spacing-xs $spacing-sm;
     background: none;
-    border: 1px solid #e74c3c;
     border-radius: 4px;
-    color: #e74c3c;
     font-size: 0.8rem;
     cursor: pointer;
     width: fit-content;
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+  }
+
+  .shoot-btn {
+    border: 1px solid #e74c3c;
+    color: #e74c3c;
 
     &:hover:not(:disabled) {
       background-color: rgba(#e74c3c, 0.15);
@@ -487,10 +598,14 @@ header {
       background-color: rgba(#e74c3c, 0.25);
       box-shadow: 0 0 6px rgba(#e74c3c, 0.5);
     }
+  }
 
-    &:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
+  .reload-btn {
+    border: 1px solid #3498db;
+    color: #3498db;
+
+    &:hover:not(:disabled) {
+      background-color: rgba(#3498db, 0.15);
     }
   }
 
@@ -610,5 +725,59 @@ header {
       background-color: #ff6b5b;
     }
   }
+}
+
+.victory-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.victory-box {
+  background: $color-bg;
+  border: 2px solid $color-text;
+  padding: $spacing-lg * 2;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+
+  h2 {
+    font-size: 1.8rem;
+    letter-spacing: 0.1em;
+    color: #2ecc71;
+  }
+}
+
+.victory-actions {
+  display: flex;
+  gap: $spacing-md;
+  justify-content: center;
+
+  button {
+    padding: $spacing-sm $spacing-lg;
+    background: transparent;
+    border: 1px solid $color-text;
+    color: $color-text;
+    cursor: pointer;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+
+    &:hover {
+      background: $color-text;
+      color: $color-bg;
+    }
+  }
+}
+
+.victory-enter-active {
+  transition: opacity 0.4s ease;
+}
+.victory-enter-from {
+  opacity: 0;
 }
 </style>
