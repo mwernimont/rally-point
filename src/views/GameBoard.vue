@@ -360,6 +360,7 @@ function onCellClick(index) {
             targetable: shootableTargets.has(i),
           }]"
           :style="soldierPositions[i] ? { backgroundColor: soldierPositions[i].color } : {}"
+          :data-tooltip="enemyPositions[i] ? `HP: ${mission.enemyStats[enemyPositions[i].id]?.hp}/${mission.enemyStats[enemyPositions[i].id]?.maxHp}` : undefined"
           @click="onCellClick(i)"
         />
       </div>
@@ -575,6 +576,23 @@ header {
   &.enemy {
     background-color: #e74c3c;
     box-shadow: inset 0 0 0 2px #000;
+    position: relative;
+
+    &[data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      font-size: 11px;
+      white-space: nowrap;
+      padding: 2px 6px;
+      border-radius: 3px;
+      pointer-events: none;
+      z-index: 10;
+    }
   }
 
   &.enemy-dead {
