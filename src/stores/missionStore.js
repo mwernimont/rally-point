@@ -27,7 +27,8 @@ export const useMissionStore = defineStore('mission', () => {
 
   const isActive = computed(() => status.value === 'active')
   const isOver = computed(() => status.value === 'complete' || status.value === 'failed')
-  const enemyCount = computed(() => enemies.value.length)
+  const livingEnemies = computed(() => enemies.value.filter(e => enemyStats.value[e.id]?.status !== 'dead'))
+  const enemyCount = computed(() => livingEnemies.value.length)
   const allActionsSpent = computed(() => {
     const active = Object.values(soldierStats.value).filter(s => s.status === 'active')
     return active.length > 0 && active.every(s => s.actionsRemaining === 0)
@@ -66,6 +67,8 @@ export const useMissionStore = defineStore('mission', () => {
     } else if (stats.hp <= 0 && stats.status === 'active') {
       stats.status = 'down'
       stats.bleedTimer = BLEED_ROUNDS
+      stats.actionsRemaining = 0
+      stats.moves = 0
     }
   }
 
@@ -110,7 +113,6 @@ export const useMissionStore = defineStore('mission', () => {
     stats.hp -= damage
     if (stats.hp <= 0) {
       stats.status = 'dead'
-      enemies.value = enemies.value.filter(e => e.id !== enemyId)
     }
   }
 
@@ -164,7 +166,7 @@ export const useMissionStore = defineStore('mission', () => {
   }
 
   return {
-    status, mapSize, turnCount, objectiveMet, enemies, enemyStats, soldierStats,
+    status, mapSize, turnCount, objectiveMet, enemies, livingEnemies, enemyStats, soldierStats,
     isActive, isOver, enemyCount, allActionsSpent,
     start, spawnEnemies, complete, fail, nextTurn, reset,
     applyDamage, applyEnemyDamage, tickBleedTimers, spendAmmo, reload, resetMoves, resetEnemyMoves,

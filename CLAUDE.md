@@ -20,7 +20,7 @@ npm test -- src/tests/MainMenu.test.js --run
 
 This is a turn-based browser tactics game (single player vs AI) built with Vue 3 + Vite + Pinia. Vue Router handles navigation between screens.
 
-**Routing** — `src/router/index.js` defines all routes. The root view (`/`) is eagerly loaded; game views use lazy imports. `src/App.vue` is a thin shell containing only `<RouterView />`.
+**Routing** — `src/router/index.js` defines all routes. The root view (`/`) is eagerly loaded; game views use lazy imports. `src/App.vue` is a thin shell containing `<RouterView :key="$route.fullPath" />` — the key forces a full remount when the path or query changes, which is how Restart/Play Again work (they push `/game?t=<timestamp>`).
 
 Screen flow: `MainMenu → SquadSelect → GameBoard → AfterMission → MainMenu`
 
@@ -45,12 +45,13 @@ soldierStats[id] = {
 Key constants from `missionStore`: `INSTANT_DEATH_FLOOR = -2`, `BLEED_ROUNDS = 2`, `ACTIONS_PER_TURN = 2`, `SPRINT_RANGE = 8`.
 Key actions: `applyDamage(id, dmg)`, `tickBleedTimers()`, `spendAmmo(id)`, `resetMoves()` (resets moves + AP + hasMoved for all active soldiers).
 `mission.start(size, soldiers)` initialises stats from each soldier's base stats. Call `resetMoves()` at the start of each player turn.
+When `applyDamage` transitions a soldier to `'down'`, it immediately zeroes `actionsRemaining` and `moves` — downed soldiers cannot act.
 
 **Enemy stats** — all enemies share the same base constants (`ENEMY_MAX_HP = 3`, `ENEMY_MAX_AMMO = 3`, `ENEMY_MOVES_PER_TURN = 5`, `ENEMY_ACTIONS_PER_TURN = 2`). Live state is keyed by `enemy.id` in `mission.enemyStats`:
 ```js
 enemyStats[id] = { hp, maxHp, ammo, maxAmmo, moves, movesPerTurn, actionsRemaining, status }
 ```
-`mission.spawnEnemies(enemyList)` populates both `enemies` and `enemyStats`. `mission.applyEnemyDamage(id, dmg)` reduces HP and removes the enemy from `enemies` on death (status set to `'dead'`).
+`mission.spawnEnemies(enemyList)` populates both `enemies` and `enemyStats`. `mission.applyEnemyDamage(id, dmg)` reduces HP and sets status to `'dead'` — dead enemies remain in `enemies` as corpses. `mission.livingEnemies` is a computed that filters to status `!== 'dead'`; use it everywhere combat logic needs active enemies.
 
 **Enemy spawn** — GameBoard generates 4–8 enemies on the opposite edge from the player using a lane-based system. The map is divided into N equal lanes (one per enemy); each enemy spawns at a random empty cell within their lane's 4-row zone. Avoids cover cells.
 
@@ -60,16 +61,18 @@ enemyStats[id] = { hp, maxHp, ammo, maxAmmo, moves, movesPerTurn, actionsRemaini
 - Shoot costs 1 AP and 1 ammo per shot
 - `mission.allActionsSpent` computed returns true when every active soldier has `actionsRemaining === 0` — used to highlight the End Turn button
 
-**Shooting** — player selects a soldier, clicks the Shoot button in the HUD to enter targeting mode. Valid targets (enemies with unobstructed LOS) are highlighted. Click a target to fire (1 dmg, 1 AP, 1 ammo). Hard cover blocks LOS (Bresenham raycast). `shootMode` ref gates targeting; `shootableTargets` and `hasValidTargets` are computeds derived from `mission.enemies` + LOS checks.
+**Shooting** — player selects a soldier, clicks the Shoot button in the HUD to enter targeting mode. Valid targets (enemies with unobstructed LOS) are highlighted. Click a target to fire (1 dmg, 1 AP, 1 ammo). Hard cover blocks LOS (Bresenham raycast). `shootMode` ref gates targeting; `shootableTargets` and `hasValidTargets` are computeds derived from `mission.livingEnemies` + LOS checks.
 
-**Turn flow** — Player turn → End Turn → 1.2s enemy phase (simulated delay, no AI yet) → Player turn. A turn banner below the map shows current phase. End Turn calls `tickBleedTimers()` → (await delay) → `resetMoves()` → `nextTurn()`.
+**Turn flow** — Player turn → End Turn → enemy phase → Player turn. A turn banner below the map shows current phase. End Turn calls `tickBleedTimers()` → `runEnemyTurn()` → `resetMoves()` → `nextTurn()`. End Turn is disabled during the enemy phase, on `missionWon`, and on `missionLost`.
 
 **GameBoard** — all map generation and game state lives in `src/views/GameBoard.vue`:
 - Map is an NxN grid (15–25) generated fresh each mission using a cluster flood-fill algorithm for cover
 - `cells[]` is a flat array of terrain types: `empty`, `half`, `hard`, `deploy` — built once on mount, never mutated
 - `soldierPositions` (reactive object) maps `cellIndex → soldier` — source of truth for where soldiers are
-- `enemyPositions` (computed) maps `cellIndex → enemy` derived from `mission.enemies`
-- `deadEnemyCells` (ref Set) tracks cell indices of killed enemies for visual dimming (⚠️ dimming not rendering reliably — under investigation)
+- `enemyPositions` (computed) maps `cellIndex → enemy` derived from `mission.livingEnemies`
+- `corpsePositions` (computed) maps `cellIndex → enemy` for dead enemies — used for the `.enemy-dead` cell class; hidden when a live entity occupies the same cell
+- `missionWon` (computed) — true when `mission.livingEnemies` is empty; shows victory overlay
+- `missionLost` (computed) — true when all `soldierStats` are non-active; shows defeat overlay
 - `highlightedCells` is a **computed** `Map<cellIndex, { movesUsed, apCost }>` derived from selected soldier's live stats — `apCost 1` = green (normal), `apCost 2` = orange (sprint). Being computed (not a ref) ensures stale movement tiles can never appear after AP is spent.
 - `getMovementRange(fromIndex, stats)` runs BFS — cover blocks movement, soldiers pass through each other; sprint tiles only shown when `canSprint`
 - Selecting a soldier shows movement range; soldier stays selected after moving for follow-up actions

@@ -123,7 +123,15 @@ mission.spawnEnemies(spawnedEnemies)
 
 const enemyPositions = computed(() => {
   const map = {}
-  for (const e of mission.enemies) map[e.cellIndex] = e
+  for (const e of mission.livingEnemies) map[e.cellIndex] = e
+  return map
+})
+
+const corpsePositions = computed(() => {
+  const map = {}
+  for (const e of mission.enemies) {
+    if (mission.enemyStats[e.id]?.status === 'dead') map[e.cellIndex] = e
+  }
   return map
 })
 
@@ -146,7 +154,6 @@ watch(gameLog, async () => {
 
 // Shooting
 const shootMode = ref(false)
-const deadEnemyCells = ref(new Set())
 
 function hasLineOfSight(fromIndex, toIndex) {
   let x0 = fromIndex % size, y0 = Math.floor(fromIndex / size)
@@ -167,7 +174,7 @@ function hasLineOfSight(fromIndex, toIndex) {
 const shootableTargets = computed(() => {
   if (!shootMode.value || selectedIndex.value == null) return new Set()
   const targets = new Set()
-  for (const e of mission.enemies) {
+  for (const e of mission.livingEnemies) {
     if (hasLineOfSight(selectedIndex.value, e.cellIndex)) targets.add(e.cellIndex)
   }
   return targets
@@ -175,7 +182,7 @@ const shootableTargets = computed(() => {
 
 const hasValidTargets = computed(() => {
   if (selectedIndex.value == null) return false
-  return mission.enemies.some(e => hasLineOfSight(selectedIndex.value, e.cellIndex))
+  return mission.livingEnemies.some(e => hasLineOfSight(selectedIndex.value, e.cellIndex))
 })
 
 function shoot(cellIndex) {
@@ -185,9 +192,8 @@ function shoot(cellIndex) {
   mission.spendAmmo(selectedSoldierId.value)
   stats.actionsRemaining -= 1
   mission.applyEnemyDamage(enemy.id, 1)
-  const killed = !mission.enemies.find(e => e.id === enemy.id)
+  const killed = mission.enemyStats[enemy.id]?.status === 'dead'
   if (killed) {
-    deadEnemyCells.value = new Set([...deadEnemyCells.value, cellIndex])
     addLog(`${soldier.name} shot and killed ${enemyLabel(enemy)}`, 'kill')
   } else {
     addLog(`${soldier.name} shot ${enemyLabel(enemy)}`, 'player')
@@ -226,6 +232,13 @@ const selectedSoldier = computed(() =>
 const selectedStats = computed(() =>
   selectedSoldierId.value ? mission.soldierStats[selectedSoldierId.value] ?? null : null
 )
+
+watch(selectedStats, (stats) => {
+  if (stats && stats.status !== 'active') {
+    selectedSoldierId.value = null
+    shootMode.value = false
+  }
+})
 
 // BFS — cover blocks movement; blockedPositions (cellIndex map) are impassable (enemies for player, soldiers for enemies)
 // Returns Map<cellIndex, { movesUsed, apCost }> where apCost 2 = sprint tile
@@ -266,7 +279,11 @@ function getMovementRange(fromIndex, stats, blockedPositions = {}) {
 }
 
 const currentPhase = ref('player')
-const missionWon = computed(() => mission.enemies.length === 0)
+const missionWon = computed(() => mission.livingEnemies.length === 0)
+const missionLost = computed(() => {
+  const stats = Object.values(mission.soldierStats)
+  return stats.length > 0 && stats.every(s => s.status !== 'active')
+})
 
 // Enemy AI helpers
 const delay = ms => new Promise(r => setTimeout(r, ms))
@@ -311,14 +328,17 @@ function bestMoveToward(reachable, targetIndex) {
 async function runEnemyTurn() {
   mission.resetEnemyMoves()
 
-  for (const enemy of [...mission.enemies]) {
+  for (const enemy of [...mission.livingEnemies]) {
     const stats = mission.enemyStats[enemy.id]
     if (!stats || stats.status !== 'active') continue
 
-    // Build blocked map: all soldiers + all other enemies
+    // Build blocked map: all soldiers + all other living enemies + corpses
     const blocked = { ...soldierPositions }
-    for (const e of mission.enemies) {
+    for (const e of mission.livingEnemies) {
       if (e.id !== enemy.id) blocked[e.cellIndex] = true
+    }
+    for (const e of mission.enemies) {
+      if (mission.enemyStats[e.id]?.status === 'dead') blocked[e.cellIndex] = true
     }
 
     // Move toward nearest active soldier (1 AP)
@@ -400,8 +420,9 @@ function onCellClick(index) {
 
   const soldierHere = soldierPositions[index]
 
-  // Clicked a soldier — toggle selection
+  // Clicked a soldier — toggle selection (only active soldiers are selectable)
   if (soldierHere) {
+    if (mission.soldierStats[soldierHere.id]?.status !== 'active') return
     selectedSoldierId.value = selectedSoldierId.value === soldierHere.id ? null : soldierHere.id
     return
   }
@@ -442,8 +463,8 @@ function onCellClick(index) {
     <header>
       <span class="map-size">{{ size }}×{{ size }}</span>
       <div class="header-actions">
-        <button :class="['end-btn', { ready: mission.allActionsSpent }]" :disabled="currentPhase === 'enemy' || missionWon" @click="endTurn">End Turn</button>
-        <button class="end-btn" @click="router.push('/game')">Restart</button>
+        <button :class="['end-btn', { ready: mission.allActionsSpent }]" :disabled="currentPhase === 'enemy' || missionWon || missionLost" @click="endTurn">End Turn</button>
+        <button class="end-btn" @click="router.push({ path: '/game', query: { t: Date.now() } })">Restart</button>
       </div>
     </header>
     <div class="soldier-hud">
@@ -505,7 +526,7 @@ function onCellClick(index) {
             sprint: highlightedCells.get(i)?.apCost === 2,
             active: selectedIndex === i,
             enemy: !!enemyPositions[i],
-            'enemy-dead': deadEnemyCells.has(i),
+            'enemy-dead': !!corpsePositions[i] && !soldierPositions[i],
             targetable: shootableTargets.has(i),
             'soldier-down': soldierPositions[i] && mission.soldierStats[soldierPositions[i].id]?.status === 'down',
             'soldier-dead': soldierPositions[i] && mission.soldierStats[soldierPositions[i].id]?.status === 'dead',
@@ -532,7 +553,19 @@ function onCellClick(index) {
         <div class="victory-box">
           <h2>Mission Complete</h2>
           <div class="victory-actions">
-            <button @click="router.push('/game')">Play Again</button>
+            <button @click="router.push({ path: '/game', query: { t: Date.now() } })">Play Again</button>
+            <button @click="router.push('/')">Main Menu</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="victory">
+      <div v-if="missionLost" class="victory-overlay">
+        <div class="victory-box">
+          <h2 class="defeat">Mission Failed</h2>
+          <div class="victory-actions">
+            <button @click="router.push({ path: '/game', query: { t: Date.now() } })">Try Again</button>
             <button @click="router.push('/')">Main Menu</button>
           </div>
         </div>
@@ -857,6 +890,8 @@ header {
     font-size: 1.8rem;
     letter-spacing: 0.1em;
     color: #2ecc71;
+
+    &.defeat { color: #e74c3c; }
   }
 }
 
