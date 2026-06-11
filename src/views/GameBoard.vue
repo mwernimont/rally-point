@@ -450,6 +450,8 @@ function onCellClick(index) {
             enemy: !!enemyPositions[i],
             'enemy-dead': deadEnemyCells.has(i),
             targetable: shootableTargets.has(i),
+            'soldier-down': soldierPositions[i] && mission.soldierStats[soldierPositions[i].id]?.status === 'down',
+            'soldier-dead': soldierPositions[i] && mission.soldierStats[soldierPositions[i].id]?.status === 'dead',
           }]"
           :style="soldierPositions[i] ? { backgroundColor: soldierPositions[i].color } : {}"
           :data-tooltip="enemyPositions[i] ? `HP: ${mission.enemyStats[enemyPositions[i].id]?.hp}/${mission.enemyStats[enemyPositions[i].id]?.maxHp}` : undefined"
@@ -714,6 +716,15 @@ header {
   &.enemy-dead {
     background-color: #5a1a1a;
     opacity: 0.4;
+  }
+
+  &.soldier-down {
+    opacity: 0.45;
+    box-shadow: inset 0 0 0 2px #e67e22;
+  }
+
+  &.soldier-dead {
+    opacity: 0.25;
   }
 
   &.targetable {
