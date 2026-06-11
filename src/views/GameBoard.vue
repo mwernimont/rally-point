@@ -178,7 +178,7 @@ const highlightedCells = computed(() => {
   if (!selectedSoldierId.value || selectedIndex.value == null || shootMode.value) return new Map()
   const stats = mission.soldierStats[selectedSoldierId.value]
   if (!stats) return new Map()
-  return getMovementRange(selectedIndex.value, stats)
+  return getMovementRange(selectedIndex.value, stats, enemyPositions.value)
 })
 
 const selectedIndex = computed(() => {
@@ -197,9 +197,9 @@ const selectedStats = computed(() =>
   selectedSoldierId.value ? mission.soldierStats[selectedSoldierId.value] ?? null : null
 )
 
-// BFS — cover blocks, soldiers pass through each other
+// BFS — cover blocks movement; blockedPositions (cellIndex map) are impassable (enemies for player, soldiers for enemies)
 // Returns Map<cellIndex, { movesUsed, apCost }> where apCost 2 = sprint tile
-function getMovementRange(fromIndex, stats) {
+function getMovementRange(fromIndex, stats, blockedPositions = {}) {
   if (stats.actionsRemaining === 0 || stats.moves === 0) return new Map()
 
   const canSprint = stats.actionsRemaining >= 2 && !stats.hasMoved
@@ -223,6 +223,7 @@ function getMovementRange(fromIndex, stats) {
       if (visited.has(key)) continue
       const ni = nr * size + nc
       if (cells[ni] === 'half' || cells[ni] === 'hard') continue
+      if (blockedPositions[ni]) continue
 
       visited.add(key)
       const movesUsed = used + 1
