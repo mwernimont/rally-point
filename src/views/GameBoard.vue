@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSquadStore } from '@/stores/squadStore.js'
 import { useMissionStore } from '@/stores/missionStore.js'
@@ -127,6 +127,23 @@ const enemyPositions = computed(() => {
   return map
 })
 
+// Game log
+const gameLog = ref([])
+const logEl = ref(null)
+
+function addLog(message, type = 'player') {
+  gameLog.value.push({ message, type })
+}
+
+function enemyLabel(enemy) {
+  return `Enemy ${parseInt(enemy.id.replace('enemy-', '')) + 1}`
+}
+
+watch(gameLog, async () => {
+  await nextTick()
+  if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
+}, { deep: true })
+
 // Shooting
 const shootMode = ref(false)
 const deadEnemyCells = ref(new Set())
@@ -163,12 +180,25 @@ const hasValidTargets = computed(() => {
 
 function shoot(cellIndex) {
   const enemy = enemyPositions.value[cellIndex]
+  const soldier = selectedSoldier.value
   const stats = mission.soldierStats[selectedSoldierId.value]
   mission.spendAmmo(selectedSoldierId.value)
   stats.actionsRemaining -= 1
   mission.applyEnemyDamage(enemy.id, 1)
-  if (!mission.enemies.find(e => e.id === enemy.id)) deadEnemyCells.value = new Set([...deadEnemyCells.value, cellIndex])
+  const killed = !mission.enemies.find(e => e.id === enemy.id)
+  if (killed) {
+    deadEnemyCells.value = new Set([...deadEnemyCells.value, cellIndex])
+    addLog(`${soldier.name} shot and killed ${enemyLabel(enemy)}`, 'kill')
+  } else {
+    addLog(`${soldier.name} shot ${enemyLabel(enemy)}`, 'player')
+  }
   shootMode.value = false
+}
+
+function reloadSoldier() {
+  const soldier = selectedSoldier.value
+  mission.reload(selectedSoldierId.value)
+  addLog(`${soldier.name} reloaded`, 'player')
 }
 
 // Movement
@@ -308,6 +338,14 @@ async function runEnemyTurn() {
       }
     }
 
+    // Reload if out of ammo (1 AP)
+    if (stats.actionsRemaining >= 1 && stats.ammo === 0) {
+      stats.ammo = mission.ENEMY_MAX_AMMO
+      stats.actionsRemaining -= 1
+      addLog(`${enemyLabel(enemy)} reloaded`, 'enemy')
+      await delay(150)
+    }
+
     // Shoot nearest soldier in LOS (1 AP)
     if (stats.actionsRemaining >= 1 && stats.ammo > 0) {
       const losTarget = nearestSoldierInLOS(enemy.cellIndex)
@@ -315,6 +353,14 @@ async function runEnemyTurn() {
         stats.ammo -= 1
         stats.actionsRemaining -= 1
         mission.applyDamage(losTarget.soldier.id, 1)
+        const soldierStatus = mission.soldierStats[losTarget.soldier.id].status
+        if (soldierStatus === 'dead') {
+          addLog(`${enemyLabel(enemy)} shot and killed ${losTarget.soldier.name}`, 'casualty')
+        } else if (soldierStatus === 'down') {
+          addLog(`${enemyLabel(enemy)} downed ${losTarget.soldier.name}`, 'casualty')
+        } else {
+          addLog(`${enemyLabel(enemy)} shot ${losTarget.soldier.name}`, 'enemy')
+        }
         await delay(150)
       }
     }
@@ -324,7 +370,17 @@ async function runEnemyTurn() {
 async function endTurn() {
   selectedSoldierId.value = null
   shootMode.value = false
+
+  const downBefore = Object.entries(mission.soldierStats)
+    .filter(([, s]) => s.status === 'down')
+    .map(([id]) => id)
   mission.tickBleedTimers()
+  for (const id of downBefore) {
+    if (mission.soldierStats[id]?.status === 'dead') {
+      const soldier = soldiers.find(s => s.id === id)
+      if (soldier) addLog(`${soldier.name} bled out`, 'casualty')
+    }
+  }
 
   currentPhase.value = 'enemy'
   await runEnemyTurn()
@@ -425,7 +481,7 @@ function onCellClick(index) {
         <button
           class="reload-btn"
           :disabled="selectedStats.actionsRemaining <= 0 || selectedStats.ammo >= selectedStats.maxAmmo"
-          @click="mission.reload(selectedSoldierId)"
+          @click="reloadSoldier()"
         >
           <PhArrowCounterClockwise :size="13" weight="fill" /> Reload
         </button>
@@ -437,6 +493,7 @@ function onCellClick(index) {
       {{ currentPhase === 'player' ? "Player's Turn" : "Enemy's Turn" }}
     </div>
 
+    <div class="map-area">
     <div class="grid-viewport">
       <div class="grid" :style="{ gridTemplateColumns: `repeat(${size}, 25px)` }">
         <div
@@ -458,6 +515,16 @@ function onCellClick(index) {
           @click="onCellClick(i)"
         />
       </div>
+    </div>
+
+    <div class="game-log" ref="logEl">
+      <div
+        v-for="(entry, i) in gameLog"
+        :key="i"
+        class="log-entry"
+        :class="entry.type"
+      >{{ entry.message }}</div>
+    </div>
     </div>
 
     <Transition name="victory">
@@ -639,12 +706,41 @@ header {
   }
 }
 
+.map-area {
+  display: flex;
+  flex: 1;
+  gap: $spacing-md;
+  overflow: hidden;
+}
+
 .grid-viewport {
   overflow: auto;
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.game-log {
+  width: 200px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: $spacing-sm;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.log-entry {
+  color: $color-text-muted;
+
+  &.player { color: $color-text; }
+  &.kill    { color: #2ecc71; }
+  &.enemy   { color: #e74c3c; }
+  &.casualty { color: #e67e22; }
 }
 
 .grid {
