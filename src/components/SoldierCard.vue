@@ -2,7 +2,7 @@
     <div class="soldier-card">
         <div class="color-block" :style="{background: soldier.color }"></div>
         <div class="soldier-info">
-            {{props.soldier.name}}
+            {{soldier.name}}
         </div>
         
     </div>
