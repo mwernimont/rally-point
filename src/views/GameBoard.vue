@@ -3,7 +3,7 @@
         <div id="game-board">
             <div id="soldier-ui">Soldier UI Area</div>
             <div id="map" class="grid">
-                <div v-for="cell in cells" :key="cell.id" class="cell"></div>
+                <div v-for="cell in cells" :key="cell.id" class="cell" :class="{'cover' : cell.cover}"></div>
             </div>
         </div>
         <div id="game-log-container">
@@ -19,6 +19,7 @@ import {ref, computed} from 'vue';
 const gridSize = ref()
 const gapSize = ref(5)
 const sidebarWidth = ref(300)
+const coverChance = ref(0.12);
 
 function generateGrid(min, max){
     gridSize.value = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -27,7 +28,8 @@ function generateGrid(min, max){
 const cellSize = computed(() => ((window.innerWidth - sidebarWidth.value) * 0.6 - (gridSize.value - 1) * gapSize.value)/ gridSize.value)
 
 const cells = computed(() => Array.from({length: gridSize.value * gridSize.value}, (_, i) => ({
-    id: i
+    id: i,
+    cover: Math.random() < coverChance.value
 })))
 
 generateGrid(10, 30);
@@ -60,6 +62,10 @@ generateGrid(10, 30);
     height: var(--cell-size);
     background: #fff;
     border-radius:$border-radius;
+}
+
+.cover{
+    background: #848F91;
 }
 // SOLDIER UI
 #soldier-ui{
