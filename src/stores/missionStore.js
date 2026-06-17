@@ -9,41 +9,45 @@ export const useMissionStore = defineStore('mission', () => {
 
     function startMission(selectedSoldiers){
         soldiers.value = selectedSoldiers.map(s => ({...s}));
-        generateGrid(10, 30);
+        const edge = pickSpawnEdge();
+        generateGrid(10, 30, edge);
         placeSoldiers();
     }
     
-    function generateGrid(min, max){
+    function generateGrid(min, max, edge){
         gridSize.value = Math.floor(Math.random() * (max - min + 1)) + min;
-        cells.value = Array.from({length: gridSize.value * gridSize.value}, (_, i) => ({
-            id: i,
-            row: Math.floor(i / gridSize.value),
-            col: i % gridSize.value,
-            cover: calculateCover(),
-            soldier: null
-        }))
-    }
-
-    function pickSpawnEdge(){
-        
-        return directions[Math.floor(Math.random() * directions.length)];
-    }
-
-    function getEdgeCells(edge){
-        return cells.value.filter(cell => {
-            if (edge === 'top') return cell.row === 0 && !cell.cover
-            if (edge === 'bottom') return cell.row === gridSize.value - 1 && !cell.cover
-            if (edge === 'left') return cell.col === 0 && !cell.cover
-            if (edge === 'right') return cell.col === gridSize.value - 1 && !cell.cover
+        const squadSize = soldiers.value.length;
+        const zoneStart = Math.floor((gridSize.value - squadSize) / 2);
+        const zoneEnd = zoneStart + squadSize - 1;
+        cells.value = Array.from({length: gridSize.value * gridSize.value}, (_, i) => {
+            const row = Math.floor(i / gridSize.value);
+            const col =  i % gridSize.value;
+            const zone = getZone(row, col, edge, zoneStart, zoneEnd);
+            return{
+                id: i,
+                row,
+                col,
+                zone,
+                cover: zone ? null : calculateCover(),
+                soldier: null
+            }
         })
     }
 
-    function placeSoldiers(){
+    function pickSpawnEdge(){
         const edges = ['top', 'bottom', 'left', 'right'];
-        const edgeCells = edges.reduce((found, edge) => {
-            if(found.length) return found;
-            return getEdgeCells(edge);
-        }, []);
+        return edges[Math.floor(Math.random() * edges.length)];
+    }
+ 
+    function getZone(row, col, edge, zoneStart, zoneEnd){
+        if(edge === "top") return (row === 0 || row === 1) && col >= zoneStart && col <= zoneEnd ? 'deploy' : null;
+        if(edge === "bottom") return (row === gridSize.value - 1 || row === gridSize.value - 2) && col >= zoneStart && col <= zoneEnd ? "deploy" : null;
+        if(edge === "left") return (col === 0 || col === 1) && row >= zoneStart && row <= zoneEnd ? "deploy" : null;
+        if(edge === "right") return (col === gridSize.value - 1 || col === gridSize.value - 2) && row >= zoneStart && row <= zoneEnd ? "deploy" : null; 
+    }
+
+    function placeSoldiers(){
+        const edgeCells = cells.value.filter(c => c.zone === 'deploy');
         soldiers.value.forEach((soldier, index) => {
             if (!edgeCells[index]) return;
             edgeCells[index].soldier = soldier;

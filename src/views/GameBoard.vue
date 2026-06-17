@@ -3,7 +3,7 @@
         <div id="game-board">
             <div id="soldier-ui">Soldier UI Area</div>
             <div id="map" class="grid">
-                <div v-for="cell in missionStore.cells" :key="cell.id" class="cell" :class="cell.cover ? `cover-${cell.cover}` : null" :style="cell.soldier ? { background: cell.soldier.color } : {}"></div>
+                <div v-for="cell in missionStore.cells" :key="cell.id" class="cell" :class="cell.cover ? `cover-${cell.cover}` : null, cell.zone === 'deploy' ? 'deploy-zone' : null" :style="cell.soldier ? { background: cell.soldier.color } : {}"></div>
             </div>
         </div>
         <div id="game-log-container">
@@ -69,6 +69,10 @@ onUnmounted(() => {
     height: var(--cell-size);
     background: #fff;
     border-radius:$border-radius;
+}
+
+.deploy-zone{
+    background: #73C3E9;
 }
 
 .cover-half{
