@@ -1,9 +1,9 @@
 <template>
-    <div id="game" :style="{'--grid-size': gridSize, '--gap-size': gapSize + 'px', '--cell-size': cellSize + 'px','--sidebar-width': sidebarWidth + 'px'}">
+    <div id="game" :style="{'--grid-size': missionStore.gridSize, '--gap-size': gapSize + 'px', '--cell-size': cellSize + 'px','--sidebar-width': sidebarWidth + 'px'}">
         <div id="game-board">
             <div id="soldier-ui">Soldier UI Area</div>
             <div id="map" class="grid">
-                <div v-for="cell in cells" :key="cell.id" class="cell" :class="{'cover' : cell.cover}"></div>
+                <div v-for="cell in missionStore.cells" :key="cell.id" class="cell" :class="cell.cover ? `cover-${cell.cover}` : null" :style="cell.soldier ? { background: cell.soldier.color } : {}"></div>
             </div>
         </div>
         <div id="game-log-container">
@@ -16,23 +16,14 @@
 </template>
 <script setup>
 import {ref, computed} from 'vue';
-const gridSize = ref()
+import { useMissionStore } from '../stores/missionStore';
+const missionStore = useMissionStore();
 const gapSize = ref(5)
 const sidebarWidth = ref(300)
 const coverChance = ref(0.12);
 
-function generateGrid(min, max){
-    gridSize.value = Math.floor(Math.random() * (max - min + 1)) + min;
-}
+const cellSize = computed(() => ((window.innerWidth - sidebarWidth.value) * 0.6 - (missionStore.gridSize - 1) * gapSize.value)/ missionStore.gridSize)
 
-const cellSize = computed(() => ((window.innerWidth - sidebarWidth.value) * 0.6 - (gridSize.value - 1) * gapSize.value)/ gridSize.value)
-
-const cells = computed(() => Array.from({length: gridSize.value * gridSize.value}, (_, i) => ({
-    id: i,
-    cover: Math.random() < coverChance.value
-})))
-
-generateGrid(10, 30);
 </script>
 <style lang="scss" scoped>
 #game{
@@ -64,8 +55,11 @@ generateGrid(10, 30);
     border-radius:$border-radius;
 }
 
-.cover{
-    background: #848F91;
+.cover-half{
+    background: #99A7AA;
+}
+.cover-hard{
+    background: #3F4868;
 }
 // SOLDIER UI
 #soldier-ui{

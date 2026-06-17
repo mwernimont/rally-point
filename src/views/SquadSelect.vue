@@ -16,7 +16,8 @@
                 <SoldierCard v-for="soldier in selectedSoldiers" :key="soldier.id" :soldier="soldier" @select="selectionStore.toggleSoldier($event)" />
             </div>
         </div>
-        <button id="deploy" @click="router.push('/game')" :disabled="selectedSoldiers.length === 0">Deploy</button>
+        <!-- TODO: replace @click with a deploy() function that hands off soldiers to missionStore, then routes to /game -->
+        <button id="deploy" @click="deploy" :disabled="selectedSoldiers.length === 0">Deploy</button>
     </div>
 </template>
 <script setup>
@@ -24,11 +25,13 @@ import { useRouter } from 'vue-router'
 import { computed} from "vue";
 import { useSoldierStore } from '../stores/soldierStore';
 import { useSelectionStore } from '../stores/selectionStore.js';
+import { useMissionStore } from '../stores/missionStore.js';
 import SoldierCard from "../components/SoldierCard.vue"
 
 const router = useRouter()
 const soldierStore = useSoldierStore();
 const selectionStore = useSelectionStore();
+const missionStore = useMissionStore();
 
 const availableSoldiers = computed(() =>
     soldierStore.soldiers.filter(s => !selectionStore.selectedSoldiers.some(sel => sel.id === s.id))
@@ -37,6 +40,11 @@ const availableSoldiers = computed(() =>
 const selectedSoldiers = computed(() =>
     soldierStore.soldiers.filter(s => selectionStore.selectedSoldiers.some(sel => sel.id === s.id))
 );
+
+function deploy(){
+    missionStore.startMission(selectedSoldiers.value);
+    router.push('/game');
+}
 </script>
 <style lang="scss" scoped>
     #squad-select{
