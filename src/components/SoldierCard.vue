@@ -15,7 +15,7 @@
     
 </template>
 <script setup>
-import { PhCrosshair, PhHeart, PhHeartbeat, PhShield } from "@phosphor-icons/vue";
+import { PhCrosshair, PhHeartbeat, PhShield } from "@phosphor-icons/vue";
 const props = defineProps({
   soldier: Object
 })
@@ -26,7 +26,11 @@ const emit = defineEmits(['select'])
     background: $color-text;
     padding: 10px;
     width: 130px;
-    border-radius: $border-radius
+    border-radius: $border-radius;
+    cursor: pointer;
+}
+.dimmed{
+    opacity: 0.4;
 }
 .color-block{
    width: 100%;
