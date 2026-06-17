@@ -8,7 +8,7 @@ export const useMissionStore = defineStore('mission', () => {
     const soldiers = ref([]);
 
     function startMission(selectedSoldiers){
-        soldiers.value = [...selectedSoldiers];
+        soldiers.value = selectedSoldiers.map(s => ({...s}));
         generateGrid(10, 30);
         placeSoldiers();
     }
@@ -25,7 +25,7 @@ export const useMissionStore = defineStore('mission', () => {
     }
 
     function pickSpawnEdge(){
-        const directions = ['top', 'bottom', 'left', 'right'];
+        
         return directions[Math.floor(Math.random() * directions.length)];
     }
 
@@ -39,8 +39,11 @@ export const useMissionStore = defineStore('mission', () => {
     }
 
     function placeSoldiers(){
-        const edge = pickSpawnEdge();
-        const edgeCells = getEdgeCells(edge);
+        const edges = ['top', 'bottom', 'left', 'right'];
+        const edgeCells = edges.reduce((found, edge) => {
+            if(found.length) return found;
+            return getEdgeCells(edge);
+        }, []);
         soldiers.value.forEach((soldier, index) => {
             if (!edgeCells[index]) return;
             edgeCells[index].soldier = soldier;

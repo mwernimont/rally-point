@@ -16,7 +16,6 @@
                 <SoldierCard v-for="soldier in selectedSoldiers" :key="soldier.id" :soldier="soldier" @select="selectionStore.toggleSoldier($event)" />
             </div>
         </div>
-        <!-- TODO: replace @click with a deploy() function that hands off soldiers to missionStore, then routes to /game -->
         <button id="deploy" @click="deploy" :disabled="selectedSoldiers.length === 0">Deploy</button>
     </div>
 </template>
@@ -43,6 +42,7 @@ const selectedSoldiers = computed(() =>
 
 function deploy(){
     missionStore.startMission(selectedSoldiers.value);
+    selectionStore.clearSelection();
     router.push('/game');
 }
 </script>

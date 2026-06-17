@@ -15,14 +15,30 @@
     </div>
 </template>
 <script setup>
-import {ref, computed} from 'vue';
+import {ref, computed, onMounted, onUnmounted} from 'vue';
 import { useMissionStore } from '../stores/missionStore';
 const missionStore = useMissionStore();
 const gapSize = ref(5)
 const sidebarWidth = ref(300)
-const coverChance = ref(0.12);
+const windowWidth = ref(window.innerWidth);
 
-const cellSize = computed(() => ((window.innerWidth - sidebarWidth.value) * 0.6 - (missionStore.gridSize - 1) * gapSize.value)/ missionStore.gridSize)
+const cellSize = computed(() => {
+    if (!missionStore.gridSize) return 0;
+    return ((windowWidth.value - sidebarWidth.value) * 0.6 - (missionStore.gridSize - 1) * gapSize.value)/ missionStore.gridSize
+})
+
+//##### HELPER FUNCTIONS #####
+function onResize(){
+    windowWidth.value = window.innerWidth
+}
+
+onMounted( () => {
+    window.addEventListener('resize', onResize);
+})
+
+onUnmounted(() => {
+    window.removeEventListener('resize', onResize);
+})
 
 </script>
 <style lang="scss" scoped>
