@@ -1,9 +1,31 @@
 <template>
     <div id="game" :style="{'--grid-size': missionStore.gridSize, '--gap-size': gapSize + 'px', '--cell-size': cellSize + 'px','--sidebar-width': sidebarWidth + 'px'}">
         <div id="game-board">
-            <div id="soldier-ui">Soldier UI Area</div>
+            <div id="soldier-ui">
+                <div v-if="missionStore.activeSoldier" class="soldier-info">
+                    <div class="avatar" :style="{background: missionStore.activeSoldier.color}"></div>
+                    <div class="soldier-name">{{ missionStore.activeSoldier.name }}</div>
+                    <div class="health"><PhHeartbeat :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentHealth}}/{{missionStore.activeSoldier.maxHealth}}</div>
+                    <div class="armor"><PhShield :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentArmor}}/{{missionStore.activeSoldier.maxArmor}}</div>
+                    <div class="ammo"><PhCrosshair :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentAmmo}}/{{missionStore.activeSoldier.maxAmmo}}</div>
+                    <div class="movement"><PhSneakerMove :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentMovement}}/{{missionStore.activeSoldier.maxMovement}}</div>
+                    <div class="ap"><PhLightning :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentAp}}/{{missionStore.activeSoldier.maxAp}}</div>
+                </div>
+            </div>
             <div id="map" class="grid">
-                <div v-for="cell in missionStore.cells" :key="cell.id" class="cell" :class="cell.cover ? `cover-${cell.cover}` : null, cell.zone === 'deploy' ? 'deploy-zone' : null" :style="cell.soldier ? { background: cell.soldier.color } : {}"></div>
+                <div 
+                    v-for="cell in missionStore.cells" 
+                    :key="cell.id" 
+                    class="cell" 
+                    :class="
+                        cell.cover ? `cover-${cell.cover}` : null, cell.zone === 'deploy' ? 'deploy-zone' : null, 
+                        cell.soldier ? 'soldier' : null, 
+                        cell.soldier?.id === missionStore.activeSoldier?.id ? 'active-soldier' : null
+                    " 
+                    :style="cell.soldier ? { background: cell.soldier.color } : {}"
+                    @click="onCellClick(cell)"
+                >
+                </div>
             </div>
         </div>
         <div id="game-log-container">
@@ -17,6 +39,7 @@
 <script setup>
 import {ref, computed, onMounted, onUnmounted} from 'vue';
 import { useMissionStore } from '../stores/missionStore';
+import { PhCrosshair, PhHeartbeat, PhShield, PhSneakerMove, PhLightning } from "@phosphor-icons/vue";
 const missionStore = useMissionStore();
 const gapSize = ref(5)
 const sidebarWidth = ref(300)
@@ -25,11 +48,15 @@ const windowWidth = ref(window.innerWidth);
 const cellSize = computed(() => {
     if (!missionStore.gridSize) return 0;
     return ((windowWidth.value - sidebarWidth.value) * 0.6 - (missionStore.gridSize - 1) * gapSize.value)/ missionStore.gridSize
-})
+});
 
 //##### HELPER FUNCTIONS #####
 function onResize(){
     windowWidth.value = window.innerWidth
+}
+
+function onCellClick(cell){
+    if(cell.soldier) return missionStore.setActiveSoldier(cell.soldier.id);
 }
 
 onMounted( () => {
@@ -75,6 +102,14 @@ onUnmounted(() => {
     background: #73C3E9;
 }
 
+.soldier{
+    cursor: pointer;
+}
+
+.active-soldier{
+    border: 2px solid $color-text;
+}
+
 .cover-half{
     background: #99A7AA;
 }
@@ -83,12 +118,22 @@ onUnmounted(() => {
 }
 // SOLDIER UI
 #soldier-ui{
-    background: peru;
     width: 100%;
-    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+.soldier-info{
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.avatar{
+    width: 40px;
+    height: 40px;
+    border: 1px solid $color-text;
+    border-radius: $border-radius
 }
 // GAME LOG
 #game-log-container{

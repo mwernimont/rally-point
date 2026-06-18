@@ -5,8 +5,8 @@
             <ul>
                 <li>{{soldier.name}} / {{ soldier.class }}</li>
                 <li><PhHeartbeat :size="15" weight="fill" color="currentColor"/> {{soldier.currentHealth}}/{{soldier.maxHealth}}</li>
-                <li><PhCrosshair :size="15" weight="fill" color="currentColor"/> {{ soldier.ammo }}</li>
-                <li><PhShield :size="15" weight="fill" color="currentColor"/> {{ soldier.armor }}</li>
+                <li><PhCrosshair :size="15" weight="fill" color="currentColor"/> {{ soldier.maxAmmo }}</li>
+                <li><PhShield :size="15" weight="fill" color="currentColor"/> {{ soldier.maxArmor }}</li>
             </ul>
             
         </div>

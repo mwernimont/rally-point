@@ -1,17 +1,25 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 export const useMissionStore = defineStore('mission', () => {
     const gridSize = ref()
     const cells = ref()
     const coverChance = ref(0.12);
     const soldiers = ref([]);
+    const activeSoldierId = ref(null);
+
+    const activeSoldier = computed(() => soldiers.value.find(s => s.id === activeSoldierId.value))
+
+    function setActiveSoldier(id){
+        activeSoldierId.value = id;
+    }
 
     function startMission(selectedSoldiers){
         soldiers.value = selectedSoldiers.map(s => ({...s}));
         const edge = pickSpawnEdge();
         generateGrid(10, 30, edge);
         placeSoldiers();
+        setActiveSoldier(soldiers.value[0].id)
     }
     
     function generateGrid(min, max, edge){
@@ -61,5 +69,5 @@ export const useMissionStore = defineStore('mission', () => {
         return Math.random() < 0.7 ? "half" : "hard";
     }
 
-    return {cells, gridSize, generateGrid, soldiers, startMission }
+    return {cells, gridSize, generateGrid, soldiers, startMission, activeSoldier, setActiveSoldier }
 })
