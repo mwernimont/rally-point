@@ -8,10 +8,47 @@ export const useMissionStore = defineStore('mission', () => {
     const soldiers = ref([]);
     const activeSoldierId = ref(null);
 
+    function chebyshevDistance(from, to) {
+        return Math.max(Math.abs(to.row - from.row), Math.abs(to.col - from.col))
+    }
+
     const activeSoldier = computed(() => soldiers.value.find(s => s.id === activeSoldierId.value))
+
+    const validMoveCells = computed(() => {
+        const soldier = activeSoldier.value
+        if (!soldier) return []
+
+        return cells.value.filter(cell => {
+            // condition 1: not the soldier's own cell
+            const isOwnCell = cell.row === soldier.row && cell.col === soldier.col
+            // condition 2: Chebyshev distance <= soldier.currentMovement
+            const distance = chebyshevDistance(soldier, cell);
+            const inRange = distance <= soldier.currentMovement
+            // condition 3: no other soldier already there
+            const isOccupied = !!cell.soldier
+            // condition 4: cell is not cover
+            const isCover = !!cell.cover
+            return !isOwnCell && !isOccupied && !isCover && inRange
+        })
+    })
 
     function setActiveSoldier(id){
         activeSoldierId.value = id;
+    }
+
+    function moveSoldier(soldier, targetCell){
+        //use soldiers row col to edit old cell
+        const oldCell = cells.value.find(c => c.row === soldier.row && c.col === soldier.col);
+        console.log(oldCell);
+        oldCell.soldier = null;
+        const cost = chebyshevDistance(soldier, targetCell)
+        //update soldiers row col to new cell
+        soldier.row = targetCell.row;
+        soldier.col = targetCell.col;
+        //update targetCells soldier value
+        targetCell.soldier = soldier;
+        //update soldiers currentMovement stat
+        soldier.currentMovement -= cost;
     }
 
     function startMission(selectedSoldiers){
@@ -69,5 +106,5 @@ export const useMissionStore = defineStore('mission', () => {
         return Math.random() < 0.7 ? "half" : "hard";
     }
 
-    return {cells, gridSize, generateGrid, soldiers, startMission, activeSoldier, setActiveSoldier }
+    return {cells, gridSize, generateGrid, soldiers, startMission, activeSoldier, setActiveSoldier, moveSoldier, validMoveCells }
 })

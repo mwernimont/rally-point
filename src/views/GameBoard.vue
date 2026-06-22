@@ -17,11 +17,13 @@
                     v-for="cell in missionStore.cells" 
                     :key="cell.id" 
                     class="cell" 
-                    :class="
-                        cell.cover ? `cover-${cell.cover}` : null, cell.zone === 'deploy' ? 'deploy-zone' : null, 
-                        cell.soldier ? 'soldier' : null, 
-                        cell.soldier?.id === missionStore.activeSoldier?.id ? 'active-soldier' : null
-                    " 
+                    :class="[
+                        cell.cover ? `cover-${cell.cover}` : null,
+                        cell.zone === 'deploy' ? 'deploy-zone' : null,
+                        cell.soldier ? 'soldier' : null,
+                        cell.soldier?.id === missionStore.activeSoldier?.id ? 'active-soldier' : null,
+                        missionStore.validMoveCells.includes(cell) ? 'valid-move' : null
+                    ]"
                     :style="cell.soldier ? { background: cell.soldier.color } : {}"
                     @click="onCellClick(cell)"
                 >
@@ -56,6 +58,7 @@ function onResize(){
 }
 
 function onCellClick(cell){
+    if (missionStore.validMoveCells.includes(cell)) return missionStore.moveSoldier(missionStore.activeSoldier, cell)
     if(cell.soldier) return missionStore.setActiveSoldier(cell.soldier.id);
 }
 
@@ -100,6 +103,14 @@ onUnmounted(() => {
 
 .deploy-zone{
     background: #73C3E9;
+}
+
+.valid-move{
+    background:  #BCE4D2;
+    &:hover{
+        background: #89D5D5;
+        cursor: pointer;
+    }
 }
 
 .soldier{
