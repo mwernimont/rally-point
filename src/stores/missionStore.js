@@ -8,9 +8,42 @@ export const useMissionStore = defineStore('mission', () => {
     const soldiers = ref([]);
     const activeSoldierId = ref(null);
 
-    function chebyshevDistance(from, to) {
-        return Math.max(Math.abs(to.row - from.row), Math.abs(to.col - from.col))
-    }
+    const reachableMap = computed(() => {
+        const soldier = activeSoldier.value;
+        if(!soldier) return new Map();
+
+        const result = new Map()
+        const queue = [{row: soldier.row, col: soldier.col, cost: 0}];
+        const visited = new Set();
+
+        while(queue.length){
+            const { row, col, cost} = queue.shift();
+            const key = `${row}, ${col}`;
+            if(visited.has(key)) continue;
+            visited.add(key);
+
+            const cell = cells.value[row * gridSize.value + col];
+            if(!cell) continue;
+            result.set(cell.id, cost);
+
+            if(cost >= soldier.currentMovement) continue;
+
+            for(let dr = -1; dr <= 1; dr++){
+                for(let dc = -1; dc <= 1; dc++){
+                    if(dr === 0 && dc === 0) continue;
+                    const nRow = row + dr;
+                    const nCol = col + dc;
+                    if(nRow < 0 || nRow >= gridSize.value || nCol < 0 || nCol >= gridSize.value) continue;
+                    if(visited.has(`${nRow}, ${nCol}`)) continue;
+                    const neighbor = cells.value[nRow * gridSize.value + nCol];
+                    if(neighbor.cover === 'hard') continue;
+                    if(neighbor.soldier && !(nRow === soldier.row && nCol === soldier.col)) continue;
+                    queue.push({row: nRow, col: nCol, cost: cost + 1});
+                }
+            }
+        }
+        return result;
+    })
 
     const activeSoldier = computed(() => soldiers.value.find(s => s.id === activeSoldierId.value))
 
@@ -19,16 +52,11 @@ export const useMissionStore = defineStore('mission', () => {
         if (!soldier) return []
 
         return cells.value.filter(cell => {
-            // condition 1: not the soldier's own cell
+            if(!reachableMap.value.has(cell.id)) return false;
             const isOwnCell = cell.row === soldier.row && cell.col === soldier.col
-            // condition 2: Chebyshev distance <= soldier.currentMovement
-            const distance = chebyshevDistance(soldier, cell);
-            const inRange = distance <= soldier.currentMovement
-            // condition 3: no other soldier already there
             const isOccupied = !!cell.soldier
-            // condition 4: cell is not cover
             const isCover = !!cell.cover
-            return !isOwnCell && !isOccupied && !isCover && inRange
+            return !isOwnCell && !isOccupied && !isCover
         })
     })
 
@@ -41,7 +69,7 @@ export const useMissionStore = defineStore('mission', () => {
         const oldCell = cells.value.find(c => c.row === soldier.row && c.col === soldier.col);
         console.log(oldCell);
         oldCell.soldier = null;
-        const cost = chebyshevDistance(soldier, targetCell)
+        const cost = reachableMap.value.get(targetCell.id)
         //update soldiers row col to new cell
         soldier.row = targetCell.row;
         soldier.col = targetCell.col;
@@ -106,5 +134,5 @@ export const useMissionStore = defineStore('mission', () => {
         return Math.random() < 0.7 ? "half" : "hard";
     }
 
-    return {cells, gridSize, generateGrid, soldiers, startMission, activeSoldier, setActiveSoldier, moveSoldier, validMoveCells }
+    return {cells, gridSize, generateGrid, soldiers, startMission, activeSoldier, setActiveSoldier, moveSoldier, validMoveCells, reachableMap }
 })
