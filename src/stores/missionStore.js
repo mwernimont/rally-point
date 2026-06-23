@@ -31,6 +31,9 @@ export const useMissionStore = defineStore('mission', () => {
             for(let dr = -1; dr <= 1; dr++){
                 for(let dc = -1; dc <= 1; dc++){
                     if(dr === 0 && dc === 0) continue;
+                    const sideA = cells.value[(row + dr) * gridSize.value + col]
+                    const sideB = cells.value[row * gridSize.value + (col + dc)]
+                    if(sideA?.cover === 'hard' || sideB?.cover === 'hard') continue;
                     const nRow = row + dr;
                     const nCol = col + dc;
                     if(nRow < 0 || nRow >= gridSize.value || nCol < 0 || nCol >= gridSize.value) continue;
@@ -67,7 +70,6 @@ export const useMissionStore = defineStore('mission', () => {
     function moveSoldier(soldier, targetCell){
         //use soldiers row col to edit old cell
         const oldCell = cells.value.find(c => c.row === soldier.row && c.col === soldier.col);
-        console.log(oldCell);
         oldCell.soldier = null;
         const cost = reachableMap.value.get(targetCell.id)
         //update soldiers row col to new cell

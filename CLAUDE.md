@@ -10,11 +10,12 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - **Game Board**: procedurally generated square grid (10–30 random size), cover generation (~12% of cells, 70% half / 30% hard), deployment zone on a random edge, soldiers placed in deployment zone.
 - **Soldier selection**: clicking a soldier cell on the map sets `activeSoldier` in `missionStore`. Active soldier is highlighted on the map (`active-soldier` class). Soldier UI strip at the top shows the active soldier's stats.
 - **Soldier UI strip**: displays name, avatar (color), and all stats (current/max) for the active soldier. Hidden via `v-if` when no active soldier.
+- **Soldier movement**: clicking a valid move cell moves the active soldier and deducts the path cost from `currentMovement`. Valid cells highlighted on the map.
 
 ### Architecture
 - `soldierStore` — source of truth for the full soldier roster
 - `selectionStore` — tracks which soldiers the player has selected, max squad size (4)
-- `missionStore` — owns all mission state: grid cells, soldiers in mission, grid generation, cover generation, soldier placement, `activeSoldierId` (ref), `activeSoldier` (computed), `setActiveSoldier(id)` action
+- `missionStore` — owns all mission state: grid cells, soldiers in mission, grid generation, cover generation, soldier placement, `activeSoldierId` (ref), `activeSoldier` (computed), `setActiveSoldier(id)` action, `reachableMap` (computed BFS result), `validMoveCells` (computed), `moveSoldier(soldier, targetCell)` action
 - `GameBoard.vue` — pure rendering view, reads from `missionStore`. Owns display concerns: `sidebarWidth`, `gapSize`, `cellSize` computed, `windowWidth` reactive ref
 
 ### Data Model
@@ -33,7 +34,6 @@ Order matters — each step depends on the previous:
 3. `startMission` deep-copies selected soldiers, picks spawn edge, generates grid, places soldiers
 
 ## Next Up
-- Soldier movement (highlight valid move cells, click to move)
 - Enemy generation and placement on the opposite edge
 - Turn-based combat loop
 
@@ -42,3 +42,5 @@ Order matters — each step depends on the previous:
 - Keep GameBoard as a pure view, all game logic belongs in `missionStore`
 - CSS variables live on `#game` (root container) so they cascade to all children
 - Cells are a `ref` (not `computed`) so soldier placement mutations persist
+- Movement uses BFS (not Chebyshev distance) so hard cover blocks pathing. `reachableMap` returns a `Map<cellId, stepCost>`. Diagonal moves are blocked if either orthogonal neighbor is hard cover (prevents corner-cutting). Half cover can be pathed through but not stopped on.
+- Cell lookup is O(1) via `cells.value[row * gridSize.value + col]` — cell id equals its flat array index
