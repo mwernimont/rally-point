@@ -11,6 +11,9 @@
                     <div class="movement"><PhSneakerMove :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentMovement}}/{{missionStore.activeSoldier.maxMovement}}</div>
                     <div class="ap"><PhLightning :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentAp}}/{{missionStore.activeSoldier.maxAp}}</div>
                 </div>
+                <button id="attack" class="actionButton">Shoot</button>
+                <button id="reload" class="actionButton">Reload</button>
+                <button id="endTurn" class="actionButton">End Turn</button>
             </div>
             <div id="map" class="grid">
                 <div 
@@ -133,6 +136,7 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 10px;
 }
 .soldier-info{
     display: flex;
@@ -145,6 +149,36 @@ onUnmounted(() => {
     height: 40px;
     border: 1px solid $color-text;
     border-radius: $border-radius
+}
+
+.actionButton{
+    --btn-color: gray;
+    border: 1px solid var(--btn-color);
+    color: var(--btn-color);
+    background: none;
+    cursor: pointer;
+    border-radius:$border-radius;
+    padding: 5px 10px;
+    &:hover{
+        background: var(--btn-color);
+        color: $color-text;
+    }
+}
+
+#attack{
+    --btn-color: #{$color-secondary};
+}
+
+#reload{
+    --btn-color: #4949F3;
+}
+
+#endTurn{
+    --btn-color: #{$color-primary};
+    opacity: 0.4;
+    &:hover{
+        opacity: 1;
+    }
 }
 // GAME LOG
 #game-log-container{
