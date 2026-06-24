@@ -11,30 +11,38 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - **Soldier selection**: clicking a soldier cell on the map sets `activeSoldier` in `missionStore`. Active soldier is highlighted on the map (`active-soldier` class). Soldier UI strip at the top shows the active soldier's stats.
 - **Soldier UI strip**: displays name, avatar (color), and all stats (current/max) for the active soldier. Hidden via `v-if` when no active soldier.
 - **Soldier movement**: clicking a valid move cell moves the active soldier and deducts the path cost from `currentMovement`. Valid cells highlighted on the map.
+- **End Turn**: resets `currentMovement` and `currentAp` for all soldiers, increments `currentTurn`, auto-selects first living soldier, logs turn start.
+- **Game Log**: sidebar log with color-coded entries by type (`turn`, `move`). Newest entries at top. `logEvent(message, type)` is the single function all actions call.
+- **Enemies on board**: 2 placeholder enemies placed on the opposite edge from players. Enemy cells render with `enemy-deploy-zone` class. Clicking an enemy cell is ignored (faction check in `onCellClick`).
 
 ### Architecture
 - `soldierStore` — source of truth for the full soldier roster
 - `selectionStore` — tracks which soldiers the player has selected, max squad size (4)
-- `missionStore` — owns all mission state: grid cells, soldiers in mission, grid generation, cover generation, soldier placement, `activeSoldierId` (ref), `activeSoldier` (computed), `setActiveSoldier(id)` action, `reachableMap` (computed BFS result), `validMoveCells` (computed), `moveSoldier(soldier, targetCell)` action
+- `missionStore` — owns all mission state: grid cells, soldiers, enemies, grid generation, cover generation, unit placement, `activeSoldierId` (ref), `activeSoldier` (computed), `setActiveSoldier(id)`, `reachableMap` (computed BFS result), `validMoveCells` (computed), `moveSoldier(soldier, targetCell)`, `endTurn()`, `logEvent(message, type)`, `currentTurn`, `gameLog`
 - `GameBoard.vue` — pure rendering view, reads from `missionStore`. Owns display concerns: `sidebarWidth`, `gapSize`, `cellSize` computed, `windowWidth` reactive ref
+- `enemyStore` — **planned**: source of truth for enemy roster/types, mirrors `soldierStore`. Mission will pull from this pool based on difficulty.
 
 ### Data Model
-Each cell has: `id`, `row`, `col`, `zone` (null | 'deploy'), `cover` (null | 'half' | 'hard'), `soldier` (null | soldier object)
-Each soldier has: `id`, `name`, `color`, `class`, `currentHealth`, `maxHealth`, `currentArmor`, `maxArmor`, `currentAmmo`, `maxAmmo`, `currentAp`, `maxAp`, `currentMovement`, `maxMovement`, `items`, `injuries`, `row`, `col` (row/col set on placement)
+Each cell has: `id`, `row`, `col`, `zone` (null | 'deploy' | 'enemy-deploy'), `cover` (null | 'half' | 'hard'), `unit` (null | unit object)
+Each soldier has: `id`, `name`, `color`, `class`, `faction` ('player'), `currentHealth`, `maxHealth`, `currentArmor`, `maxArmor`, `currentAmmo`, `maxAmmo`, `currentAp`, `maxAp`, `currentMovement`, `maxMovement`, `items`, `injuries`, `row`, `col`
+Each enemy has: same shape as soldier but `faction: 'enemy'`
 
 ### Map Generation Pipeline
 Order matters — each step depends on the previous:
 1. `pickSpawnEdge` — picks a random edge ('top' | 'bottom' | 'left' | 'right')
-2. `generateGrid(min, max, edge)` — builds cells, marks deploy zone (2 deep, squad-width, centered on edge), cover skipped for deploy cells
-3. `placeSoldiers` — filters `zone === 'deploy'` cells, assigns soldiers in index order
+2. `pickOppositeEdge(edge)` — returns the opposing edge
+3. `generateGrid(min, max, playerEdge, enemyEdge)` — builds cells, marks both deploy zones (2 deep, unit-count-width, centered on edge), cover skipped for zone cells. Uses `isOnEdge(row, col, edge, zoneStart, zoneEnd)` helper to avoid duplicate positional logic.
+4. `placeSoldiers` — filters `zone === 'deploy'` cells, assigns soldiers in index order
+5. `placeEnemies` — filters `zone === 'enemy-deploy'` cells, assigns enemies in index order
 
 ### Flow
 1. Player selects soldiers in `SquadSelect`
 2. Deploy button calls `missionStore.startMission(selectedSoldiers)` then routes to `/game`
-3. `startMission` deep-copies selected soldiers, picks spawn edge, generates grid, places soldiers
+3. `startMission` deep-copies selected soldiers with `faction: 'player'`, picks spawn edges, generates grid, places soldiers and enemies
 
 ## Next Up
-- Enemy generation and placement on the opposite edge
+- `enemyStore` with proper enemy roster and classes (mirrors `soldierStore`)
+- Dynamic enemy selection based on difficulty
 - Turn-based combat loop
 
 ## Dev Notes
