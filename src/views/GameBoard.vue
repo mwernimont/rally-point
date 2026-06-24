@@ -24,13 +24,14 @@
                         cell.cover ? `cover-${cell.cover}` : null,
                         cell.zone === 'deploy' ? 'deploy-zone' : null,
                         cell.zone === 'enemy-deploy' ? 'enemy-deploy-zone' : null,
-                        cell.unit ? 'soldier' : null,
+                        cell.unit?.faction === 'player' ? 'soldier' : cell.unit?.faction === 'enemy' ? 'enemy' : null,
                         cell.unit?.id === missionStore.activeSoldier?.id ? 'active-soldier' : null,
                         missionStore.validMoveCells.includes(cell) ? 'valid-move' : null
                     ]"
                     :style="cell.unit ? { background: cell.unit.color } : {}"
                     @click="onCellClick(cell)"
                 >
+                <component v-if="cell.unit" :is="classIcons[cell.unit.class]" :size="16" weight="fill"/>
                 </div>
             </div>
         </div>
@@ -47,11 +48,19 @@
 <script setup>
 import {ref, computed, onMounted, onUnmounted} from 'vue';
 import { useMissionStore } from '../stores/missionStore';
-import { PhCrosshair, PhHeartbeat, PhShield, PhSneakerMove, PhLightning } from "@phosphor-icons/vue";
+import { PhCrosshair, PhHeartbeat, PhShield, PhSneakerMove, PhLightning, PhBroadcast, PhFirstAid, PhCaretDoubleUp } from "@phosphor-icons/vue";
 const missionStore = useMissionStore();
 const gapSize = ref(5)
 const sidebarWidth = ref(300)
 const windowWidth = ref(window.innerWidth);
+
+const classIcons = {
+    Radio: PhBroadcast,
+    Medic: PhFirstAid,
+    Heavy: PhShield,
+    Scout: PhCrosshair,
+    Ranger: PhCaretDoubleUp
+};
 
 const cellSize = computed(() => {
     if (!missionStore.gridSize) return 0;
@@ -125,6 +134,12 @@ onUnmounted(() => {
 
 .soldier{
     cursor: pointer;
+}
+
+.soldier, .enemy{
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .active-soldier{
