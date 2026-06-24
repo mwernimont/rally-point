@@ -13,14 +13,15 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - **Soldier movement**: clicking a valid move cell moves the active soldier and deducts the path cost from `currentMovement`. Valid cells highlighted on the map.
 - **End Turn**: resets `currentMovement` and `currentAp` for all soldiers, increments `currentTurn`, auto-selects first living soldier, logs turn start.
 - **Game Log**: sidebar log with color-coded entries by type (`turn`, `move`). Newest entries at top. `logEvent(message, type)` is the single function all actions call.
-- **Enemies on board**: 2 placeholder enemies placed on the opposite edge from players. Enemy cells render with `enemy-deploy-zone` class. Clicking an enemy cell is ignored (faction check in `onCellClick`).
+- **Enemies on board**: Enemies randomly selected from `enemyStore` pool via `pickEnemies(count)`, placed on the opposite edge from players. Enemy cells render with `enemy-deploy-zone` class. Clicking an enemy cell is ignored (faction check in `onCellClick`).
+- **Unit class icons**: Phosphor Icons rendered on unit cells via dynamic `<component :is="classIcons[cell.unit.class]">` lookup. `classIcons` map lives in `GameBoard.vue` as a display concern.
 
 ### Architecture
 - `soldierStore` — source of truth for the full soldier roster
 - `selectionStore` — tracks which soldiers the player has selected, max squad size (4)
 - `missionStore` — owns all mission state: grid cells, soldiers, enemies, grid generation, cover generation, unit placement, `activeSoldierId` (ref), `activeSoldier` (computed), `setActiveSoldier(id)`, `reachableMap` (computed BFS result), `validMoveCells` (computed), `moveSoldier(soldier, targetCell)`, `endTurn()`, `logEvent(message, type)`, `currentTurn`, `gameLog`
 - `GameBoard.vue` — pure rendering view, reads from `missionStore`. Owns display concerns: `sidebarWidth`, `gapSize`, `cellSize` computed, `windowWidth` reactive ref
-- `enemyStore` — **planned**: source of truth for enemy roster/types, mirrors `soldierStore`. Mission will pull from this pool based on difficulty.
+- `enemyStore` — source of truth for enemy roster. Exposes `pickEnemies(count)` which shuffles the pool and returns `count` deep-copied enemies. `missionStore` calls this in `startMission`.
 
 ### Data Model
 Each cell has: `id`, `row`, `col`, `zone` (null | 'deploy' | 'enemy-deploy'), `cover` (null | 'half' | 'hard'), `unit` (null | unit object)
@@ -38,11 +39,10 @@ Order matters — each step depends on the previous:
 ### Flow
 1. Player selects soldiers in `SquadSelect`
 2. Deploy button calls `missionStore.startMission(selectedSoldiers)` then routes to `/game`
-3. `startMission` deep-copies selected soldiers with `faction: 'player'`, picks spawn edges, generates grid, places soldiers and enemies
+3. `startMission` deep-copies selected soldiers (faction baked into `soldierStore`), calls `enemyStore.pickEnemies(count)`, picks spawn edges, generates grid, places soldiers and enemies
 
 ## Next Up
-- `enemyStore` with proper enemy roster and classes (mirrors `soldierStore`)
-- Dynamic enemy selection based on difficulty
+- Dynamic enemy count based on difficulty
 - Turn-based combat loop
 
 ## Dev Notes

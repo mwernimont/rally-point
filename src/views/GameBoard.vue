@@ -31,7 +31,7 @@
                     :style="cell.unit ? { background: cell.unit.color } : {}"
                     @click="onCellClick(cell)"
                 >
-                <component v-if="cell.unit" :is="classIcons[cell.unit.class]" :size="16" weight="fill"/>
+                <component v-if="cell.unit" :is="classIcons[cell.unit.class]" :size="16" weight="fill" color="#000"/>
                 </div>
             </div>
         </div>
