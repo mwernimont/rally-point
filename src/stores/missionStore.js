@@ -7,6 +7,10 @@ export const useMissionStore = defineStore('mission', () => {
     const coverChance = ref(0.12);
     const soldiers = ref([]);
     const activeSoldierId = ref(null);
+    const enemies = ref([
+        {id: 1, name: "Enemy", color: "#E10808", class: "Ranger", currentHealth: 5, maxHealth: 5, currentMovement: 5, maxMovement: 5, currentArmor: 0, maxArmor: 0, currentAmmo: 4, maxAmmo: 4, currentAp: 2, maxAp: 2, items: [], injuries: "none", faction: "enemy"},
+        {id: 2, name: "Enemy", color: "#E10808", class: "Ranger", currentHealth: 5, maxHealth: 5, currentMovement: 5, maxMovement: 5, currentArmor: 0, maxArmor: 0, currentAmmo: 4, maxAmmo: 4, currentAp: 2, maxAp: 2, items: [], injuries: "none", faction: "enemy"}
+    ]);
     const currentTurn = ref(1);
     const gameLog = ref([]);
     //###### COMPUTED ######
@@ -42,7 +46,7 @@ export const useMissionStore = defineStore('mission', () => {
                     if(visited.has(`${nRow}, ${nCol}`)) continue;
                     const neighbor = cells.value[nRow * gridSize.value + nCol];
                     if(neighbor.cover === 'hard') continue;
-                    if(neighbor.soldier && !(nRow === soldier.row && nCol === soldier.col)) continue;
+                    if(neighbor.unit && !(nRow === soldier.row && nCol === soldier.col)) continue;
                     queue.push({row: nRow, col: nCol, cost: cost + 1});
                 }
             }
@@ -59,28 +63,31 @@ export const useMissionStore = defineStore('mission', () => {
         return cells.value.filter(cell => {
             if(!reachableMap.value.has(cell.id)) return false;
             const isOwnCell = cell.row === soldier.row && cell.col === soldier.col
-            const isOccupied = !!cell.soldier
+            const isOccupied = !!cell.unit
             const isCover = !!cell.cover
             return !isOwnCell && !isOccupied && !isCover
         })
     })
     //###### FUNCTIONS ######
-    function generateGrid(min, max, edge){
+    function generateGrid(min, max, playerEdge, enemyEdge){
         gridSize.value = Math.floor(Math.random() * (max - min + 1)) + min;
         const squadSize = soldiers.value.length;
-        const zoneStart = Math.floor((gridSize.value - squadSize) / 2);
-        const zoneEnd = zoneStart + squadSize - 1;
+        const playerZoneStart = Math.floor((gridSize.value - squadSize) / 2);
+        const playerZoneEnd = playerZoneStart + squadSize - 1;
+        const enemyCount = enemies.value.length;
+        const enemyZoneStart = Math.floor((gridSize.value - enemyCount) / 2);
+        const enemyZoneEnd = enemyZoneStart + enemyCount - 1;
         cells.value = Array.from({length: gridSize.value * gridSize.value}, (_, i) => {
             const row = Math.floor(i / gridSize.value);
             const col =  i % gridSize.value;
-            const zone = getZone(row, col, edge, zoneStart, zoneEnd);
+            const zone = getZone(row, col, playerEdge, playerZoneStart, playerZoneEnd, enemyEdge, enemyZoneStart, enemyZoneEnd);
             return{
                 id: i,
                 row,
                 col,
                 zone,
                 cover: zone ? null : calculateCover(),
-                soldier: null
+                unit: null
             }
         })
     }
@@ -89,21 +96,44 @@ export const useMissionStore = defineStore('mission', () => {
         const edges = ['top', 'bottom', 'left', 'right'];
         return edges[Math.floor(Math.random() * edges.length)];
     }
+
+    function pickOppositeEdge(edge){
+        if(edge === 'top') return 'bottom';
+        if(edge === 'bottom') return 'top';
+        if(edge === 'left') return 'right';
+        if(edge === 'right') return 'left';
+    }
  
-    function getZone(row, col, edge, zoneStart, zoneEnd){
-        if(edge === "top") return (row === 0 || row === 1) && col >= zoneStart && col <= zoneEnd ? 'deploy' : null;
-        if(edge === "bottom") return (row === gridSize.value - 1 || row === gridSize.value - 2) && col >= zoneStart && col <= zoneEnd ? "deploy" : null;
-        if(edge === "left") return (col === 0 || col === 1) && row >= zoneStart && row <= zoneEnd ? "deploy" : null;
-        if(edge === "right") return (col === gridSize.value - 1 || col === gridSize.value - 2) && row >= zoneStart && row <= zoneEnd ? "deploy" : null; 
+    function getZone(row, col, playerEdge, playerZoneStart, playerZoneEnd, enemyEdge, enemyZoneStart, enemyZoneEnd){
+        if(isOnEdge(row, col, playerEdge, playerZoneStart, playerZoneEnd)) return 'deploy';
+        if(isOnEdge(row, col, enemyEdge, enemyZoneStart, enemyZoneEnd)) return 'enemy-deploy';
+        return null;
+    }
+
+    function isOnEdge(row, col, edge, zoneStart, zoneEnd){
+        if(edge === "top") return (row === 0 || row === 1) && col >= zoneStart && col <= zoneEnd;
+        if(edge === "bottom") return (row === gridSize.value - 1 || row === gridSize.value - 2) && col >= zoneStart && col <= zoneEnd;
+        if(edge === "left") return (col === 0 || col === 1) && row >= zoneStart && row <= zoneEnd;
+        if(edge === "right") return (col === gridSize.value - 1 || col === gridSize.value - 2) && row >= zoneStart && row <= zoneEnd; 
     }
 
     function placeSoldiers(){
-        const edgeCells = cells.value.filter(c => c.zone === 'deploy');
+        const playerCells = cells.value.filter(c => c.zone === 'deploy');
         soldiers.value.forEach((soldier, index) => {
-            if (!edgeCells[index]) return;
-            edgeCells[index].soldier = soldier;
-            soldier.row = edgeCells[index].row;
-            soldier.col = edgeCells[index].col;
+            if (!playerCells[index]) return;
+            playerCells[index].unit = soldier;
+            soldier.row = playerCells[index].row;
+            soldier.col = playerCells[index].col;
+        })
+    }
+
+    function placeEnemies(){
+        const enemyCells = cells.value.filter(c => c.zone === 'enemy-deploy');
+        enemies.value.forEach((enemy, index) => {
+            if (!enemyCells[index]) return;
+            enemyCells[index].unit = enemy;
+            enemy.row = enemyCells[index].row;
+            enemy.col = enemyCells[index].col;
         })
     }
 
@@ -113,10 +143,12 @@ export const useMissionStore = defineStore('mission', () => {
     }
 
     function startMission(selectedSoldiers){
-        soldiers.value = selectedSoldiers.map(s => ({...s}));
+        soldiers.value = selectedSoldiers.map(s => ({...s, faction: 'player'}));
         const edge = pickSpawnEdge();
-        generateGrid(10, 30, edge);
+        const opositeEdge = pickOppositeEdge(edge);
+        generateGrid(10, 30, edge, opositeEdge);
         placeSoldiers();
+        placeEnemies();
         setActiveSoldier(soldiers.value[0].id)
         logEvent(`Turn ${currentTurn.value} started`, "turn")
     }
@@ -128,19 +160,20 @@ export const useMissionStore = defineStore('mission', () => {
     function moveSoldier(soldier, targetCell){
         //use soldiers row col to edit old cell
         const oldCell = cells.value.find(c => c.row === soldier.row && c.col === soldier.col);
-        oldCell.soldier = null;
+        oldCell.unit = null;
         const cost = reachableMap.value.get(targetCell.id)
         //update soldiers row col to new cell
         soldier.row = targetCell.row;
         soldier.col = targetCell.col;
         //update targetCells soldier value
-        targetCell.soldier = soldier;
+        targetCell.unit = soldier;
         //update soldiers currentMovement stat
         soldier.currentMovement -= cost;
+        logEvent(`${soldier.name} moved to cell {${soldier.row}, ${soldier.col}}`, 'move')
     }
 
     function endTurn(){
-        activeSoldierId.value = soldiers.value[0].id;
+        activeSoldierId.value = soldiers.value.find(s => s.currentHealth > 0)?.id;
         soldiers.value.forEach(s => {
             s.currentMovement = s.maxMovement;
             s.currentAp = s.maxAp;
@@ -158,6 +191,7 @@ export const useMissionStore = defineStore('mission', () => {
         gridSize, 
         generateGrid, 
         soldiers, 
+        enemies,
         startMission, 
         activeSoldier, 
         setActiveSoldier, 

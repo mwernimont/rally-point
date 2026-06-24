@@ -23,11 +23,12 @@
                     :class="[
                         cell.cover ? `cover-${cell.cover}` : null,
                         cell.zone === 'deploy' ? 'deploy-zone' : null,
-                        cell.soldier ? 'soldier' : null,
-                        cell.soldier?.id === missionStore.activeSoldier?.id ? 'active-soldier' : null,
+                        cell.zone === 'enemy-deploy' ? 'enemy-deploy-zone' : null,
+                        cell.unit ? 'soldier' : null,
+                        cell.unit?.id === missionStore.activeSoldier?.id ? 'active-soldier' : null,
                         missionStore.validMoveCells.includes(cell) ? 'valid-move' : null
                     ]"
-                    :style="cell.soldier ? { background: cell.soldier.color } : {}"
+                    :style="cell.unit ? { background: cell.unit.color } : {}"
                     @click="onCellClick(cell)"
                 >
                 </div>
@@ -64,7 +65,7 @@ function onResize(){
 
 function onCellClick(cell){
     if (missionStore.validMoveCells.includes(cell)) return missionStore.moveSoldier(missionStore.activeSoldier, cell)
-    if(cell.soldier) return missionStore.setActiveSoldier(cell.soldier.id);
+    if(cell.unit && cell.unit.faction === 'player') return missionStore.setActiveSoldier(cell.unit.id);
 }
 
 onMounted( () => {
@@ -108,6 +109,10 @@ onUnmounted(() => {
 
 .deploy-zone{
     background: #73C3E9;
+}
+
+.enemy-deploy-zone{
+    background: mediumturquoise;
 }
 
 .valid-move{
@@ -200,6 +205,9 @@ onUnmounted(() => {
 
 .log-turn{
     color: $color-secondary;
+}
+.log-move{
+    color: blue;
 }
 
 </style>
