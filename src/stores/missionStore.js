@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { useEnemyStore } from './enemyStore';
 
 export const useMissionStore = defineStore('mission', () => {
     const gridSize = ref()
@@ -7,10 +8,7 @@ export const useMissionStore = defineStore('mission', () => {
     const coverChance = ref(0.12);
     const soldiers = ref([]);
     const activeSoldierId = ref(null);
-    const enemies = ref([
-        {id: 1, name: "Enemy", color: "#E10808", class: "Ranger", currentHealth: 5, maxHealth: 5, currentMovement: 5, maxMovement: 5, currentArmor: 0, maxArmor: 0, currentAmmo: 4, maxAmmo: 4, currentAp: 2, maxAp: 2, items: [], injuries: "none", faction: "enemy"},
-        {id: 2, name: "Enemy", color: "#E10808", class: "Ranger", currentHealth: 5, maxHealth: 5, currentMovement: 5, maxMovement: 5, currentArmor: 0, maxArmor: 0, currentAmmo: 4, maxAmmo: 4, currentAp: 2, maxAp: 2, items: [], injuries: "none", faction: "enemy"}
-    ]);
+    const enemies = ref([]);
     const currentTurn = ref(1);
     const gameLog = ref([]);
     //###### COMPUTED ######
@@ -143,7 +141,8 @@ export const useMissionStore = defineStore('mission', () => {
     }
 
     function startMission(selectedSoldiers){
-        soldiers.value = selectedSoldiers.map(s => ({...s, faction: 'player'}));
+        soldiers.value = selectedSoldiers.map(s => ({...s}));
+        enemies.value = useEnemyStore().pickEnemies(4);
         const edge = pickSpawnEdge();
         const opositeEdge = pickOppositeEdge(edge);
         generateGrid(10, 30, edge, opositeEdge);
