@@ -43,7 +43,44 @@ Order matters — each step depends on the previous:
 
 ## Next Up
 - Dynamic enemy count based on difficulty
-- Turn-based combat loop
+- Turn-based combat loop (shooting → LoS → hit chance → cover → reload)
+
+## Combat Design (planned, not yet implemented)
+
+### Action Economy
+- Movement is free (up to `currentMovement`)
+- Each unit gets one action per turn tracked by an `acted` boolean (reset on turn start)
+- AP stat reserved for future multi-action abilities — not used yet
+- Actions: Shoot (costs action), Reload (costs action, restores `currentAmmo` to `maxAmmo`)
+
+### Line of Sight
+- Hard cover blocks LoS entirely — cannot target through or behind it
+- Half cover does not block LoS but grants the target a defense bonus
+
+### Hit Chance Formula
+```
+hitChance = accuracyByRange[rangeBracket] - coverBonus
+```
+- `rangeBracket` derived from BFS step distance between shooter and target
+- Brackets: close = 1–3, medium = 4–7, long = 8+
+- `coverBonus` applied when target is in half cover (TBD value)
+- Roll a random number, compare to hitChance → hit or miss
+
+### Accuracy by Range
+Each unit type has `accuracyByRange: { close, medium, long }` stored in `soldierStore`/`enemyStore`. No flat accuracy stat — all class differentiation lives in the data.
+- **Ranger**: high close/medium, drops off at long
+- **Scout**: low close, peaks at long (inverse curve)
+- **Heavy**: capped across all ranges (never great, but consistent), compensated with high ammo
+- **Medic/Radio**: TBD, likely mediocre across the board
+
+### Game Log
+Hit resolution logs the full math and result:
+`Ranger shot Heavy → 75% (medium) - 20% (half cover) = 55% → Hit! [32 rolled]`
+
+### Enemy Turn (movement only, to start)
+- Phase tracked by `currentPhase` ref (`'player' | 'enemy'`) in `missionStore`
+- End Turn flips to `'enemy'` phase, runs enemy moves, then flips back to `'player'`
+- Enemy AI: BFS toward nearest player soldier, move up to full `currentMovement`, stop one cell short of occupied cells
 
 ## Dev Notes
 - User writes the code — Claude is a thinking partner only, no writing code unless scaffolding comments
