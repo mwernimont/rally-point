@@ -7,7 +7,9 @@ export const useMissionStore = defineStore('mission', () => {
     const coverChance = ref(0.12);
     const soldiers = ref([]);
     const activeSoldierId = ref(null);
-
+    const currentTurn = ref(1);
+    const gameLog = ref([]);
+    //###### COMPUTED ######
     const reachableMap = computed(() => {
         const soldier = activeSoldier.value;
         if(!soldier) return new Map();
@@ -62,33 +64,7 @@ export const useMissionStore = defineStore('mission', () => {
             return !isOwnCell && !isOccupied && !isCover
         })
     })
-
-    function setActiveSoldier(id){
-        activeSoldierId.value = id;
-    }
-
-    function moveSoldier(soldier, targetCell){
-        //use soldiers row col to edit old cell
-        const oldCell = cells.value.find(c => c.row === soldier.row && c.col === soldier.col);
-        oldCell.soldier = null;
-        const cost = reachableMap.value.get(targetCell.id)
-        //update soldiers row col to new cell
-        soldier.row = targetCell.row;
-        soldier.col = targetCell.col;
-        //update targetCells soldier value
-        targetCell.soldier = soldier;
-        //update soldiers currentMovement stat
-        soldier.currentMovement -= cost;
-    }
-
-    function startMission(selectedSoldiers){
-        soldiers.value = selectedSoldiers.map(s => ({...s}));
-        const edge = pickSpawnEdge();
-        generateGrid(10, 30, edge);
-        placeSoldiers();
-        setActiveSoldier(soldiers.value[0].id)
-    }
-    
+    //###### FUNCTIONS ######
     function generateGrid(min, max, edge){
         gridSize.value = Math.floor(Math.random() * (max - min + 1)) + min;
         const squadSize = soldiers.value.length;
@@ -136,5 +112,61 @@ export const useMissionStore = defineStore('mission', () => {
         return Math.random() < 0.7 ? "half" : "hard";
     }
 
-    return {cells, gridSize, generateGrid, soldiers, startMission, activeSoldier, setActiveSoldier, moveSoldier, validMoveCells, reachableMap }
+    function startMission(selectedSoldiers){
+        soldiers.value = selectedSoldiers.map(s => ({...s}));
+        const edge = pickSpawnEdge();
+        generateGrid(10, 30, edge);
+        placeSoldiers();
+        setActiveSoldier(soldiers.value[0].id)
+        logEvent(`Turn ${currentTurn.value} started`, "turn")
+    }
+
+    function setActiveSoldier(id){
+        activeSoldierId.value = id;
+    }
+
+    function moveSoldier(soldier, targetCell){
+        //use soldiers row col to edit old cell
+        const oldCell = cells.value.find(c => c.row === soldier.row && c.col === soldier.col);
+        oldCell.soldier = null;
+        const cost = reachableMap.value.get(targetCell.id)
+        //update soldiers row col to new cell
+        soldier.row = targetCell.row;
+        soldier.col = targetCell.col;
+        //update targetCells soldier value
+        targetCell.soldier = soldier;
+        //update soldiers currentMovement stat
+        soldier.currentMovement -= cost;
+    }
+
+    function endTurn(){
+        activeSoldierId.value = soldiers.value[0].id;
+        soldiers.value.forEach(s => {
+            s.currentMovement = s.maxMovement;
+            s.currentAp = s.maxAp;
+        });
+        currentTurn.value++;
+        logEvent(`Turn ${currentTurn.value} started`, "turn")
+    }
+
+    function logEvent(message, type){
+        gameLog.value.unshift({message: message, type: type})
+    }
+    
+    return {
+        cells, 
+        gridSize, 
+        generateGrid, 
+        soldiers, 
+        startMission, 
+        activeSoldier, 
+        setActiveSoldier, 
+        moveSoldier, 
+        validMoveCells, 
+        reachableMap,
+        endTurn,
+        currentTurn,
+        gameLog,
+        logEvent
+    }
 })

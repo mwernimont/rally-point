@@ -13,7 +13,7 @@
                 </div>
                 <button id="attack" class="actionButton">Shoot</button>
                 <button id="reload" class="actionButton">Reload</button>
-                <button id="endTurn" class="actionButton">End Turn</button>
+                <button id="endTurn" class="actionButton" @click="missionStore.endTurn()">End Turn</button>
             </div>
             <div id="map" class="grid">
                 <div 
@@ -37,7 +37,9 @@
             <div id="game-log-label">
                 Game Log
             </div>
-            <div id="game-log"></div>
+            <div id="game-log">
+                <div v-for="(log, index) in missionStore.gameLog" :key="index" :class="`log-${log.type}`">{{ log.message }}</div>
+            </div>
         </div>
     </div>
 </template>
@@ -175,10 +177,6 @@ onUnmounted(() => {
 
 #endTurn{
     --btn-color: #{$color-primary};
-    opacity: 0.4;
-    &:hover{
-        opacity: 1;
-    }
 }
 // GAME LOG
 #game-log-container{
@@ -198,6 +196,10 @@ onUnmounted(() => {
     flex: 1;
     overflow-y: auto;
     padding: 10px;
+}
+
+.log-turn{
+    color: $color-secondary;
 }
 
 </style>
