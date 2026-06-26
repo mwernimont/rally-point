@@ -20,6 +20,7 @@ export const useSoldierStore = defineStore('soldiers', () => {
             currentAp: 2,
             maxAp: 2,
             accuracyByRange: {close: 85, medium: 70, long: 40},
+            damage: 2,
             items: [],
             injuries: "none"
         },
@@ -40,6 +41,7 @@ export const useSoldierStore = defineStore('soldiers', () => {
             currentAp: 2, 
             maxAp: 2, 
             accuracyByRange: {close: 40, medium: 65, long: 85}, 
+            damage: 2,
             items: [], 
             injuries: "none"
         },
@@ -60,6 +62,7 @@ export const useSoldierStore = defineStore('soldiers', () => {
             currentAp: 2, 
             maxAp: 2, 
             accuracyByRange: {close: 60, medium: 60, long: 60}, 
+            damage: 3,
             items: [], 
             injuries: "none"
         },
@@ -80,6 +83,7 @@ export const useSoldierStore = defineStore('soldiers', () => {
             currentAp: 2, 
             maxAp: 2, 
             accuracyByRange: {close: 50, medium: 50, long: 35}, 
+            damage: 1,
             items: [], 
             injuries: "none"
         },
@@ -100,6 +104,7 @@ export const useSoldierStore = defineStore('soldiers', () => {
             currentAp: 2, 
             maxAp: 2, 
             accuracyByRange: {close: 50, medium: 50, long: 35}, 
+            damage: 1,
             items: [], 
             injuries: "none"
         }
