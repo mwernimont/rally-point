@@ -18,6 +18,9 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - **Enemy movement**: on End Turn, each enemy finds the nearest living player soldier (Manhattan distance), calls `computeReachable` for its movement budget, and moves to the reachable cell closest to that target.
 - **Unit class icons**: Phosphor Icons rendered on unit cells via dynamic `<component :is="classIcons[cell.unit.class]">` lookup. `classIcons` map lives in `GameBoard.vue` as a display concern.
 - **`pathfinding.js`**: BFS extracted to `src/utils/pathFinding.js` as `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`. Used by `missionStore.reachableMap` and `runEnemyTurn`.
+- **`combat.js`**: plain JS module at `src/utils/combat.js`. Exports `getRangeBracket(distance)`, `hasLoS(attacker, target, cells, gridSize)` → `{ blocked, halfCover }`, `resolveAttack({ attacker, target, cells, gridSize })` → `{ hit, damage, logMessage }`. No store imports, no state mutations.
+- **Player shooting**: Shoot button toggles `targetingMode` in `missionStore`. `validTargets` computed filters enemies with unblocked LoS. Clicking a valid target cell calls `applyAttack`. Targeting mode exits after shot or second Shoot press.
+- **`applyAttack(attackerId, targetId)`**: in `missionStore`. Looks up attacker and target across both arrays, calls `resolveAttack`, logs result, applies armor absorption then health damage if hit, deducts 1 AP from attacker.
 
 ### Architecture
 - `soldierStore` — source of truth for the full player soldier roster
@@ -25,12 +28,12 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - `selectionStore` — tracks which soldiers the player has selected, max squad size (4)
 - `missionStore` — single source of truth for all mission state: grid, units, turn/phase, game log. Owns all mutation functions (`applyAttack`, `logEvent`, etc.). Sequences the combat chain (resolve → mutate → log) using plain module helpers.
 - `src/utils/pathFinding.js` — plain JS module. Exports `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`. No store, no reactivity.
-- `combat.js` *(planned)* — plain JS module. Exports `resolveAttack({ attacker, target, cells, gridSize })` → `{ hit, damage, logMessage }`. Computes distance, LoS, hit chance, damage roll. Returns a result object — never mutates state.
+- `src/utils/combat.js` — plain JS module. Exports `getRangeBracket`, `hasLoS`, `resolveAttack`. No store imports, no reactivity.
 - `GameBoard.vue` — pure rendering view, reads from `missionStore`. Fires actions to `missionStore` directly. Owns display concerns: `sidebarWidth`, `gapSize`, `cellSize` computed, `windowWidth` reactive ref
 
 ### Data Model
 Each cell has: `id`, `row`, `col`, `zone` (null | 'deploy' | 'enemy-deploy'), `cover` (null | 'half' | 'hard'), `unit` (null | unit object)
-Each soldier has: `id`, `name`, `color`, `class`, `faction` ('player'), `currentHealth`, `maxHealth`, `currentArmor`, `maxArmor`, `currentAmmo`, `maxAmmo`, `currentAp`, `maxAp`, `currentMovement`, `maxMovement`, `accuracyByRange: { close, medium, long }`, `items`, `injuries`, `row`, `col`
+Each soldier has: `id`, `name`, `color`, `class`, `faction` ('player'), `currentHealth`, `maxHealth`, `currentArmor`, `maxArmor`, `currentAmmo`, `maxAmmo`, `currentAp`, `maxAp`, `currentMovement`, `maxMovement`, `accuracyByRange: { close, medium, long }`, `damage`, `items`, `injuries`, `row`, `col`
 Each enemy has: same shape as soldier but `faction: 'enemy'`
 
 ### Map Generation Pipeline
@@ -47,22 +50,9 @@ Order matters — each step depends on the previous:
 3. `startMission` resets log/turn/phase, deep-copies selected soldiers, calls `enemyStore.pickEnemies(count)`, picks spawn edges, generates grid, places soldiers and enemies
 
 ## Next Up
-- Build `combat.js`, wire `missionStore.applyAttack()` to call it
-- Wire the Shoot button in `GameBoard.vue`
-
-## Modules To Build
-
-### `combat.js`
-- Create `src/utils/combat.js`
-- Export `resolveAttack({ attacker, target, cells, gridSize })` → `{ hit, damage, logMessage }`
-- Functions inside:
-  - `hasLoS(attacker, target, cells, gridSize)` — ray cast, hard cover blocks. Returns bool.
-  - `getRangeBracket(distance)` — BFS step count → `'close' | 'medium' | 'long'`
-  - `resolveAttack(...)` — runs LoS check, range bracket, attacker's `accuracyByRange`, cover bonus, dice roll. Builds the log line. Returns result object.
-- Returns results only — no state mutations, no store imports
-
-### `missionStore` additions
-- `applyAttack(attackerId, targetId)` — looks up attacker in `soldiers.value`, target in `enemies.value` (or vice versa), calls `resolveAttack`, mutates `target.currentHealth`, pushes `logMessage` to `gameLog`. This is the only place health gets mutated.
+- **Enemy shooting**: wire `applyAttack` into `runEnemyTurn` — after each enemy moves, if a player soldier is within range and has LoS, enemy shoots. Same `applyAttack` call, just enemy as attacker and soldier as target.
+- **Reload**: Reload button costs 1 AP, resets `activeSoldier.currentAmmo` to `maxAmmo`. Needs a `reloadSoldier(soldierId)` action in `missionStore`. Disable Reload button when ammo is already full or soldier has no AP.
+- **Ammo gating**: `applyAttack` should check `attacker.currentAmmo > 0` before firing and deduct 1 ammo on shot. Currently ammo is tracked but not enforced.
 
 ## Combat Design (planned, not yet implemented)
 
@@ -80,9 +70,9 @@ Order matters — each step depends on the previous:
 ```
 hitChance = accuracyByRange[rangeBracket] - coverBonus
 ```
-- `rangeBracket` derived from BFS step distance between shooter and target
+- `rangeBracket` derived from Chebyshev distance between shooter and target (`Math.max(|dr|, |dc|)`)
 - Brackets: close = 1–3, medium = 4–7, long = 8+
-- `coverBonus` applied when target is in half cover (TBD value)
+- `coverBonus` = 20 when half cover is in the LoS ray between attacker and target
 - Roll a random number, compare to hitChance → hit or miss
 
 ### Accuracy by Range
@@ -100,7 +90,7 @@ Hit resolution logs the full math and result:
 - Phase tracked by `currentPhase` ref (`'player' | 'enemy'`) in `missionStore`
 - `endTurn` flips to `'enemy'`, calls `runEnemyTurn()`, flips back to `'player'`
 - Current AI: each enemy finds nearest living player soldier by Manhattan distance, calls `computeReachable`, moves to the reachable cell closest to that target
-- Future: enemies should shoot when in range before/after moving
+- Next: enemies should shoot when a player soldier is in LoS after moving. Call `applyAttack(enemy.id, target.id)` inside `runEnemyTurn` after movement resolves.
 
 ## Dev Notes
 - User writes the code — Claude is a thinking partner only, no writing code unless scaffolding comments
