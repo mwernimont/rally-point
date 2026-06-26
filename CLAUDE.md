@@ -20,15 +20,14 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - `soldierStore` — source of truth for the full player soldier roster
 - `enemyStore` — source of truth for enemy roster. Exposes `pickEnemies(count)` which shuffles the pool and returns `count` deep-copied enemies.
 - `selectionStore` — tracks which soldiers the player has selected, max squad size (4)
-- `missionStore` — single source of truth for all mission state: grid, units, turn/phase, game log. Exposes mutation functions (`applyDamage`, `applyInjury`, `logEvent`, etc.) that other stores call to commit results. Never calls into `combatStore` or `injuryStore` directly.
-- `combatStore` *(planned)* — pure calculator. Resolves LoS, hit chance, damage. Takes inputs, returns a result object. Never mutates state directly.
-- `injuryStore` *(planned)* — pure calculator. Rolls and resolves injuries based on inputs. Returns result. Never mutates state directly.
-- `gameStore` *(planned)* — the director/brain. `GameBoard` talks to `gameStore` instead of individual stores. Sequences the chain of events (shot resolves → damage applied → death checked → injury rolled → log written). Knows the order; the other stores don't know each other exist.
-- `GameBoard.vue` — pure rendering view, reads from `missionStore`. Fires actions to `gameStore`. Owns display concerns: `sidebarWidth`, `gapSize`, `cellSize` computed, `windowWidth` reactive ref
+- `missionStore` — single source of truth for all mission state: grid, units, turn/phase, game log. Owns all mutation functions (`applyAttack`, `logEvent`, etc.). Sequences the combat chain (resolve → mutate → log) using plain module helpers.
+- `pathfinding.js` *(planned)* — plain JS module. Exports `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`. No store, no reactivity. Used by `missionStore.reachableMap` and enemy movement.
+- `combat.js` *(planned)* — plain JS module. Exports `resolveAttack({ attacker, target, cells, gridSize })` → `{ hit, damage, logMessage }`. Computes distance, LoS, hit chance, damage roll. Returns a result object — never mutates state.
+- `GameBoard.vue` — pure rendering view, reads from `missionStore`. Fires actions to `missionStore` directly. Owns display concerns: `sidebarWidth`, `gapSize`, `cellSize` computed, `windowWidth` reactive ref
 
 ### Data Model
 Each cell has: `id`, `row`, `col`, `zone` (null | 'deploy' | 'enemy-deploy'), `cover` (null | 'half' | 'hard'), `unit` (null | unit object)
-Each soldier has: `id`, `name`, `color`, `class`, `faction` ('player'), `currentHealth`, `maxHealth`, `currentArmor`, `maxArmor`, `currentAmmo`, `maxAmmo`, `currentAp`, `maxAp`, `currentMovement`, `maxMovement`, `items`, `injuries`, `row`, `col`
+Each soldier has: `id`, `name`, `color`, `class`, `faction` ('player'), `currentHealth`, `maxHealth`, `currentArmor`, `maxArmor`, `currentAmmo`, `maxAmmo`, `currentAp`, `maxAp`, `currentMovement`, `maxMovement`, `accuracyByRange: { close, medium, long }`, `items`, `injuries`, `row`, `col`
 Each enemy has: same shape as soldier but `faction: 'enemy'`
 
 ### Map Generation Pipeline
@@ -45,41 +44,40 @@ Order matters — each step depends on the previous:
 3. `startMission` deep-copies selected soldiers (faction baked into `soldierStore`), calls `enemyStore.pickEnemies(count)`, picks spawn edges, generates grid, places soldiers and enemies
 
 ## Next Up
-- Dynamic enemy count based on difficulty
-- Turn-based combat loop (shooting → LoS → hit chance → cover → reload)
+- Extract BFS into `pathfinding.js`, reuse it for enemy movement
+- Build `combat.js`, wire `missionStore.applyAttack()` to call it
+- Resolve aliasing before any health-mutating code lands (see Dev Notes)
 
-## Stores To Build
+## Modules To Build
 
-### `combatStore`
-- Create `src/stores/combatStore.js`
-- Imports `missionStore` to read grid/cell state for LoS calculation
-- Functions to build:
-  - `hasLoS(shooter, target)` — ray cast between two units, returns bool. Hard cover cells block it.
-  - `getRangeBracket(shooter, target)` — BFS distance → `'close' | 'medium' | 'long'`
-  - `resolveShot(shooter, target)` — runs LoS, range, accuracy, cover bonus, dice roll. Returns `{ hit: bool, roll: number, hitChance: number, bracket: string, coverBonus: number }`
-- Returns results only — never calls `missionStore` mutations directly
+### `pathfinding.js`
+- Create `src/utils/pathfinding.js`
+- Export `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`
+- Exact same BFS logic currently in `missionStore.reachableMap` — just extracted
+- `missionStore.reachableMap` becomes a one-liner: `return computeReachable(cells.value, gridSize.value, soldier.row, soldier.col, soldier.currentMovement)`
+- Enemy movement feeds it an enemy's row/col/movement — same function, different inputs
 
-### `gameStore`
-- Create `src/stores/gameStore.js`
-- Imports `missionStore`, `combatStore`, `injuryStore` (when built)
-- `GameBoard.vue` imports `gameStore` for all player actions (shoot, reload, move is still `missionStore` for now)
-- Functions to build:
-  - `handleShot(shooter, target)` — calls `combatStore.resolveShot()`, then sequences: `missionStore.applyDamage()`, death check, `missionStore.logEvent()`. Will later add injury roll when `injuryStore` exists.
-  - `handleReload(soldier)` — sets `soldier.currentAmmo` to `soldier.maxAmmo`, marks `acted`, logs it. Can live here or in `missionStore` — TBD.
-  - `handleEnemyTurn()` — sequences all enemy moves, then flips `currentPhase` back to `'player'`
+### `combat.js`
+- Create `src/utils/combat.js`
+- Export `resolveAttack({ attacker, target, cells, gridSize })` → `{ hit, damage, logMessage }`
+- Functions inside:
+  - `hasLoS(attacker, target, cells, gridSize)` — ray cast, hard cover blocks. Returns bool.
+  - `getRangeBracket(distance)` — BFS step count → `'close' | 'medium' | 'long'`
+  - `resolveAttack(...)` — runs LoS check, range bracket, attacker's `accuracyByRange`, cover bonus, dice roll. Builds the log line. Returns result object.
+- Returns results only — no state mutations, no store imports
 
-### Connecting them
-- `missionStore` needs new mutation functions: `applyDamage(unit, amount)`, and eventually `applyInjury(unit, injury)`
-- `missionStore` needs `acted` tracking: add `acted` boolean to each unit, reset in `endTurn()`
-- `GameBoard.vue` currently calls `missionStore.endTurn()` directly — this should route through `gameStore.handleEndTurn()` so the enemy turn can be sequenced after
+### `missionStore` additions
+- `applyAttack(attackerId, targetId)` — looks up both units, calls `resolveAttack`, mutates `target.currentHealth`, pushes `logMessage` to `gameLog`. This is the only place health gets mutated.
+- `endTurn()` needs to also reset enemies (movement, AP) and trigger enemy turn when `currentPhase` flips
+- `currentPhase` ref (`'player' | 'enemy'`) — add to `missionStore`, flip in `endTurn()`
 
 ## Combat Design (planned, not yet implemented)
 
 ### Action Economy
-- Movement is free (up to `currentMovement`)
-- Each unit gets one action per turn tracked by an `acted` boolean (reset on turn start)
-- AP stat reserved for future multi-action abilities — not used yet
-- Actions: Shoot (costs action), Reload (costs action, restores `currentAmmo` to `maxAmmo`)
+- Each unit has AP (`currentAp`) spent on actions each turn, reset on turn start
+- Movement costs 1 AP and spends `currentMovement` up to the unit's budget
+- Actions: Move (1 AP), Shoot (1 AP), Reload (1 AP, restores `currentAmmo` to `maxAmmo`)
+- A unit can act until AP runs out — no single-action-per-turn restriction
 
 ### Line of Sight
 - Hard cover blocks LoS entirely — cannot target through or behind it
@@ -112,9 +110,9 @@ Hit resolution logs the full math and result:
 
 ## Dev Notes
 - User writes the code — Claude is a thinking partner only, no writing code unless scaffolding comments
-- Keep GameBoard as a pure view. It reads from `missionStore` and fires actions to `gameStore` — nothing else.
-- `combatStore` and `injuryStore` are pure calculators — they return results, never mutate state directly. All state mutations go through `missionStore` functions.
-- `gameStore` is the sequencer — it knows the order of operations. If you're not sure where logic belongs, ask: is this math/calculation (combatStore/injuryStore), state mutation (missionStore), or sequencing (gameStore)?
+- Keep GameBoard as a pure view. It reads from `missionStore` and fires actions to `missionStore` directly — no other stores.
+- If you're not sure where logic belongs: pure math → plain JS module (`combat.js`, `pathfinding.js`). State mutation → `missionStore`. Sequencing (resolve → mutate → log) → also `missionStore`, using the plain modules as tools.
+- **Aliasing rule**: `cell.unit` and the `soldiers.value` / `enemies.value` array entries are the same object reference. `soldiers.value` / `enemies.value` are canonical — treat `cell.unit` as an index into them. Never spread or clone a unit mid-mission or they desync. All health mutations go through `missionStore.applyAttack()` which mutates the canonical array entry.
 - CSS variables live on `#game` (root container) so they cascade to all children
 - Cells are a `ref` (not `computed`) so soldier placement mutations persist
 - Movement uses BFS (not Chebyshev distance) so hard cover blocks pathing. `reachableMap` returns a `Map<cellId, stepCost>`. Diagonal moves are blocked if either orthogonal neighbor is hard cover (prevents corner-cutting). Half cover can be pathed through but not stopped on.
