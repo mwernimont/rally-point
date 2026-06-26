@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useEnemyStore } from './enemyStore';
 import { computeReachable } from '../utils/pathFinding';
+import { resolveAttack, hasLoS } from '../utils/combat';
 
 export const useMissionStore = defineStore('mission', () => {
 
@@ -15,6 +16,7 @@ export const useMissionStore = defineStore('mission', () => {
     const currentTurn = ref(1);
     const currentPhase = ref("player");
     const gameLog = ref([]);
+    const targetingMode = ref(false);
 
     //###### COMPUTED ######
     const activeSoldier = computed(() => soldiers.value.find(s => s.id === activeSoldierId.value))
@@ -38,6 +40,13 @@ export const useMissionStore = defineStore('mission', () => {
             const isCover = !!cell.cover
             return !isOwnCell && !isOccupied && !isCover
         })
+    });
+
+    const validTargets = computed(() => {
+        if(targetingMode.value){
+            return enemies.value.filter(e => !hasLoS(activeSoldier.value, e, cells.value, gridSize.value).blocked);
+        }
+        return [];
     })
 
     //###### MAP GENERATION ######
@@ -148,7 +157,24 @@ export const useMissionStore = defineStore('mission', () => {
         //update soldiers currentMovement stat
         soldier.currentMovement -= cost;
         soldier.currentAp -= 1
-        logEvent(`${soldier.name} moved to cell {${soldier.row}, ${soldier.col}}`, 'move')
+        logEvent(`${soldier.name} moved to cell {${soldier.row}, ${soldier.col}}`, 'player-move')
+    }
+
+    function toggleTargetingMode(){
+        targetingMode.value = !targetingMode.value;
+    }
+
+    function applyAttack(attackerId, targetId){
+        const attacker = soldiers.value.find(s => s.id === attackerId) ?? enemies.value.find(e => e.id === attackerId);
+        const target = soldiers.value.find(s => s.id === targetId) ?? enemies.value.find(e => e.id === targetId);
+        const result = resolveAttack({attacker, target, cells: cells.value, gridSize: gridSize.value});
+        logEvent(result.logMessage, `${attacker.faction}-attack`);
+        if(result.hit){
+            const armorAbsorb = Math.min(target.currentArmor, result.damage);
+            target.currentArmor -= armorAbsorb
+            target.currentHealth -= (result.damage - armorAbsorb);
+        }
+        attacker.currentAp -= 1;
     }
 
     //###### TURN ######
@@ -193,7 +219,7 @@ export const useMissionStore = defineStore('mission', () => {
             bestCell.unit = enemy;
             enemy.row = bestCell.row;
             enemy.col = bestCell.col;
-            logEvent(`${enemy.name} moved to {${enemy.row}, ${enemy.col}}`, 'move');
+            logEvent(`${enemy.name} moved to {${enemy.row}, ${enemy.col}}`, 'enemy-move');
         })
     }
 
@@ -219,9 +245,13 @@ export const useMissionStore = defineStore('mission', () => {
         allSoldierSpent,
         reachableMap,
         validMoveCells,
+        validTargets,
+        targetingMode,
         startMission,
         setActiveSoldier,
         moveSoldier,
+        toggleTargetingMode,
+        applyAttack,
         endTurn,
         logEvent
     }

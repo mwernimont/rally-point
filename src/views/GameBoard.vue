@@ -11,7 +11,7 @@
                     <div class="movement"><PhSneakerMove :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentMovement}}/{{missionStore.activeSoldier.maxMovement}}</div>
                     <div class="ap"><PhLightning :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentAp}}/{{missionStore.activeSoldier.maxAp}}</div>
                 </div>
-                <button id="attack" class="actionButton" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0">Shoot</button>
+                <button id="attack" class="actionButton" @click="missionStore.toggleTargetingMode()" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0">Shoot</button>
                 <button id="reload" class="actionButton" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0">Reload</button>
                 <button id="endTurn" class="actionButton" :class="{urgent: missionStore.allSoldierSpent }" @click="missionStore.endTurn()">End Turn</button>
             </div>
@@ -26,7 +26,8 @@
                         cell.zone === 'enemy-deploy' ? 'enemy-deploy-zone' : null,
                         cell.unit?.faction === 'player' ? 'soldier' : cell.unit?.faction === 'enemy' ? 'enemy' : null,
                         cell.unit?.id === missionStore.activeSoldier?.id ? 'active-soldier' : null,
-                        missionStore.validMoveCells.includes(cell) ? 'valid-move' : null
+                        missionStore.validMoveCells.includes(cell) ? 'valid-move' : null,
+                        missionStore.validTargets.some(e => e.id === cell.unit?.id) ? 'valid-target' : null
                     ]"
                     :style="cell.unit ? { background: cell.unit.color } : {}"
                     @click="onCellClick(cell)"
@@ -73,8 +74,14 @@ function onResize(){
 }
 
 function onCellClick(cell){
+    if(missionStore.targetingMode &&  cell.unit?.faction === "enemy" && missionStore.validTargets.some(e => e.id === cell.unit.id)){
+        missionStore.applyAttack(missionStore.activeSoldier.id, cell.unit.id);
+        missionStore.toggleTargetingMode();
+        return;
+    }
     if (missionStore.validMoveCells.includes(cell)) return missionStore.moveSoldier(missionStore.activeSoldier, cell)
     if(cell.unit && cell.unit.faction === 'player') return missionStore.setActiveSoldier(cell.unit.id);
+    
 }
 
 onMounted( () => {
@@ -130,6 +137,10 @@ onUnmounted(() => {
         background: #89D5D5;
         cursor: pointer;
     }
+}
+
+.valid-target{
+    border: 2px solid #fff;
 }
 
 .soldier{
@@ -235,7 +246,19 @@ onUnmounted(() => {
 .log-turn{
     color: $color-secondary;
 }
-.log-move{
+.log-player-move{
+    color: green;
+}
+
+.log-player-attack{
+    color: purple;
+}
+
+.log-enemy-attack{
+    color: red;
+}
+
+.log-enemy-move{
     color: blue;
 }
 
