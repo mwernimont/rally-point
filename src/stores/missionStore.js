@@ -13,6 +13,7 @@ export const useMissionStore = defineStore('mission', () => {
     const activeSoldierId = ref(null);
     const enemies = ref([]);
     const currentTurn = ref(1);
+    const currentPhase = ref("player");
     const gameLog = ref([]);
 
     //###### COMPUTED ######
@@ -117,6 +118,7 @@ export const useMissionStore = defineStore('mission', () => {
     function startMission(selectedSoldiers){
         gameLog.value = [];
         currentTurn.value = 1;
+        currentPhase.value = "player";
         soldiers.value = selectedSoldiers.map(s => ({...s}));
         enemies.value = useEnemyStore().pickEnemies(4);
         const edge = pickSpawnEdge();
@@ -135,7 +137,7 @@ export const useMissionStore = defineStore('mission', () => {
 
     function moveSoldier(soldier, targetCell){
         //use soldiers row col to edit old cell
-        const oldCell = cells.value.find(c => c.row === soldier.row && c.col === soldier.col);
+        const oldCell = cellAt(soldier.row, soldier.col);
         oldCell.unit = null;
         const cost = reachableMap.value.get(targetCell.id)
         //update soldiers row col to new cell
@@ -151,18 +153,58 @@ export const useMissionStore = defineStore('mission', () => {
 
     //###### TURN ######
     function endTurn(){
-        activeSoldierId.value = soldiers.value.find(s => s.currentHealth > 0)?.id;
+        currentPhase.value = "enemy";
+        runEnemyTurn();
+        currentPhase.value = "player";
+        currentTurn.value++;
         soldiers.value.forEach(s => {
             s.currentMovement = s.maxMovement;
             s.currentAp = s.maxAp;
         });
-        currentTurn.value++;
+        activeSoldierId.value = soldiers.value.find(s => s.currentHealth > 0)?.id;
         logEvent(`Turn ${currentTurn.value} started`, "turn")
+    }
+
+    function runEnemyTurn(){
+        enemies.value.forEach(enemy => {
+            const target = soldiers.value
+            .filter(s => s.currentHealth > 0)
+            .reduce((closest, s) => {
+                const distToS = Math.abs(s.row - enemy.row) + Math.abs(s.col - enemy.col);
+                const distToClosest = Math.abs(closest.row - enemy.row) + Math.abs(closest.col - enemy.col);
+                return distToS < distToClosest ? s : closest;
+            });
+            const reachable = computeReachable(cells.value, gridSize.value, enemy.row, enemy.col, enemy.currentMovement);
+
+            let bestCell = null;
+            let bestDist = Infinity;
+            for(const [cellId] of reachable){
+                const cell = cells.value[cellId];
+                if(cell.unit) continue;
+                const dist = Math.abs(cell.row - target.row) + Math.abs(cell.col - target.col);
+                if(dist < bestDist){
+                    bestDist = dist;
+                    bestCell = cell;
+                }
+            }
+            if(!bestCell) return;
+            const oldCell = cellAt(enemy.row, enemy.col);
+            oldCell.unit = null;
+            bestCell.unit = enemy;
+            enemy.row = bestCell.row;
+            enemy.col = bestCell.col;
+            logEvent(`${enemy.name} moved to {${enemy.row}, ${enemy.col}}`, 'move');
+        })
     }
 
     //###### LOG ######
     function logEvent(message, type){
         gameLog.value.unshift({message: message, type: type})
+    }
+
+    //###### HELPER ######
+    function cellAt(row, col){
+        return cells.value[row * gridSize.value + col];
     }
 
     return {
@@ -171,6 +213,7 @@ export const useMissionStore = defineStore('mission', () => {
         soldiers,
         enemies,
         currentTurn,
+        currentPhase,
         gameLog,
         activeSoldier,
         allSoldierSpent,
