@@ -7,21 +7,24 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 ### Completed
 - **Main Menu** → **Squad Select** → **Game Board** routing via Vue Router
 - **Squad Select**: players pick up to 4 soldiers from a roster, deploy button disabled until at least one is selected. Available soldiers dim when squad is full. Selection cleared on deploy.
-- **Game Board**: procedurally generated square grid (10–30 random size), cover generation (~12% of cells, 70% half / 30% hard), deployment zone on a random edge, soldiers placed in deployment zone.
+- **Game Board**: procedurally generated square grid (30–35 random size), cover generation (~12% of cells, 70% half / 30% hard), deployment zone on a random edge, soldiers placed in deployment zone.
 - **Soldier selection**: clicking a soldier cell on the map sets `activeSoldier` in `missionStore`. Active soldier is highlighted on the map (`active-soldier` class). Soldier UI strip at the top shows the active soldier's stats.
 - **Soldier UI strip**: displays name, avatar (color), and all stats (current/max) for the active soldier. Hidden via `v-if` when no active soldier.
-- **Soldier movement**: clicking a valid move cell moves the active soldier and deducts the path cost from `currentMovement`. Valid cells highlighted on the map.
-- **End Turn**: resets `currentMovement` and `currentAp` for all soldiers, increments `currentTurn`, auto-selects first living soldier, logs turn start.
-- **Game Log**: sidebar log with color-coded entries by type (`turn`, `move`). Newest entries at top. `logEvent(message, type)` is the single function all actions call.
-- **Enemies on board**: Enemies randomly selected from `enemyStore` pool via `pickEnemies(count)`, placed on the opposite edge from players. Enemy cells render with `enemy-deploy-zone` class. Clicking an enemy cell is ignored (faction check in `onCellClick`).
+- **Soldier movement**: clicking a valid move cell moves the active soldier, deducts path cost from `currentMovement`, and costs 1 AP. Valid cells highlighted on the map. No highlight when soldier is out of AP.
+- **Action buttons**: Shoot and Reload buttons disabled (greyed out) when active soldier has no AP. End Turn button fills solid when all soldiers are out of AP (`allSoldierSpent`).
+- **End Turn**: flips phase to `'enemy'`, runs enemy turn, flips back to `'player'`, resets `currentMovement` and `currentAp` for all soldiers, increments `currentTurn`, auto-selects first living soldier, logs turn start.
+- **Game Log**: sidebar log with color-coded entries by type (`turn`, `move`). Newest entries at top. `logEvent(message, type)` is the single function all actions call. Clears on new mission.
+- **Enemies on board**: Enemies randomly selected from `enemyStore` pool via `pickEnemies(count)`, placed on the opposite edge from players. Clicking an enemy cell is ignored (faction check in `onCellClick`).
+- **Enemy movement**: on End Turn, each enemy finds the nearest living player soldier (Manhattan distance), calls `computeReachable` for its movement budget, and moves to the reachable cell closest to that target.
 - **Unit class icons**: Phosphor Icons rendered on unit cells via dynamic `<component :is="classIcons[cell.unit.class]">` lookup. `classIcons` map lives in `GameBoard.vue` as a display concern.
+- **`pathfinding.js`**: BFS extracted to `src/utils/pathFinding.js` as `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`. Used by `missionStore.reachableMap` and `runEnemyTurn`.
 
 ### Architecture
 - `soldierStore` — source of truth for the full player soldier roster
 - `enemyStore` — source of truth for enemy roster. Exposes `pickEnemies(count)` which shuffles the pool and returns `count` deep-copied enemies.
 - `selectionStore` — tracks which soldiers the player has selected, max squad size (4)
 - `missionStore` — single source of truth for all mission state: grid, units, turn/phase, game log. Owns all mutation functions (`applyAttack`, `logEvent`, etc.). Sequences the combat chain (resolve → mutate → log) using plain module helpers.
-- `pathfinding.js` *(planned)* — plain JS module. Exports `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`. No store, no reactivity. Used by `missionStore.reachableMap` and enemy movement.
+- `src/utils/pathFinding.js` — plain JS module. Exports `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`. No store, no reactivity.
 - `combat.js` *(planned)* — plain JS module. Exports `resolveAttack({ attacker, target, cells, gridSize })` → `{ hit, damage, logMessage }`. Computes distance, LoS, hit chance, damage roll. Returns a result object — never mutates state.
 - `GameBoard.vue` — pure rendering view, reads from `missionStore`. Fires actions to `missionStore` directly. Owns display concerns: `sidebarWidth`, `gapSize`, `cellSize` computed, `windowWidth` reactive ref
 
@@ -41,21 +44,13 @@ Order matters — each step depends on the previous:
 ### Flow
 1. Player selects soldiers in `SquadSelect`
 2. Deploy button calls `missionStore.startMission(selectedSoldiers)` then routes to `/game`
-3. `startMission` deep-copies selected soldiers (faction baked into `soldierStore`), calls `enemyStore.pickEnemies(count)`, picks spawn edges, generates grid, places soldiers and enemies
+3. `startMission` resets log/turn/phase, deep-copies selected soldiers, calls `enemyStore.pickEnemies(count)`, picks spawn edges, generates grid, places soldiers and enemies
 
 ## Next Up
-- Extract BFS into `pathfinding.js`, reuse it for enemy movement
 - Build `combat.js`, wire `missionStore.applyAttack()` to call it
-- Resolve aliasing before any health-mutating code lands (see Dev Notes)
+- Wire the Shoot button in `GameBoard.vue`
 
 ## Modules To Build
-
-### `pathfinding.js`
-- Create `src/utils/pathfinding.js`
-- Export `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`
-- Exact same BFS logic currently in `missionStore.reachableMap` — just extracted
-- `missionStore.reachableMap` becomes a one-liner: `return computeReachable(cells.value, gridSize.value, soldier.row, soldier.col, soldier.currentMovement)`
-- Enemy movement feeds it an enemy's row/col/movement — same function, different inputs
 
 ### `combat.js`
 - Create `src/utils/combat.js`
@@ -67,9 +62,7 @@ Order matters — each step depends on the previous:
 - Returns results only — no state mutations, no store imports
 
 ### `missionStore` additions
-- `applyAttack(attackerId, targetId)` — looks up both units, calls `resolveAttack`, mutates `target.currentHealth`, pushes `logMessage` to `gameLog`. This is the only place health gets mutated.
-- `endTurn()` needs to also reset enemies (movement, AP) and trigger enemy turn when `currentPhase` flips
-- `currentPhase` ref (`'player' | 'enemy'`) — add to `missionStore`, flip in `endTurn()`
+- `applyAttack(attackerId, targetId)` — looks up attacker in `soldiers.value`, target in `enemies.value` (or vice versa), calls `resolveAttack`, mutates `target.currentHealth`, pushes `logMessage` to `gameLog`. This is the only place health gets mutated.
 
 ## Combat Design (planned, not yet implemented)
 
@@ -94,24 +87,25 @@ hitChance = accuracyByRange[rangeBracket] - coverBonus
 
 ### Accuracy by Range
 Each unit type has `accuracyByRange: { close, medium, long }` stored in `soldierStore`/`enemyStore`. No flat accuracy stat — all class differentiation lives in the data.
-- **Ranger**: high close/medium, drops off at long
-- **Scout**: low close, peaks at long (inverse curve)
-- **Heavy**: capped across all ranges (never great, but consistent), compensated with high ammo
-- **Medic/Radio**: TBD, likely mediocre across the board
+- **Ranger**: 85 / 70 / 40 — strong up close, falls off at range
+- **Scout**: 40 / 65 / 85 — inverse curve, sniper profile
+- **Heavy**: 60 / 60 / 60 — flat across all brackets, consistent but never great
+- **Medic/Radio**: 50 / 50 / 35 — mediocre support units, slight long-range penalty
 
 ### Game Log
 Hit resolution logs the full math and result:
 `Ranger shot Heavy → 75% (medium) - 20% (half cover) = 55% → Hit! [32 rolled]`
 
-### Enemy Turn (movement only, to start)
+### Enemy Turn
 - Phase tracked by `currentPhase` ref (`'player' | 'enemy'`) in `missionStore`
-- End Turn flips to `'enemy'` phase, runs enemy moves, then flips back to `'player'`
-- Enemy AI: BFS toward nearest player soldier, move up to full `currentMovement`, stop one cell short of occupied cells
+- `endTurn` flips to `'enemy'`, calls `runEnemyTurn()`, flips back to `'player'`
+- Current AI: each enemy finds nearest living player soldier by Manhattan distance, calls `computeReachable`, moves to the reachable cell closest to that target
+- Future: enemies should shoot when in range before/after moving
 
 ## Dev Notes
 - User writes the code — Claude is a thinking partner only, no writing code unless scaffolding comments
 - Keep GameBoard as a pure view. It reads from `missionStore` and fires actions to `missionStore` directly — no other stores.
-- If you're not sure where logic belongs: pure math → plain JS module (`combat.js`, `pathfinding.js`). State mutation → `missionStore`. Sequencing (resolve → mutate → log) → also `missionStore`, using the plain modules as tools.
+- If you're not sure where logic belongs: pure math → plain JS module (`combat.js`, `pathFinding.js`). State mutation → `missionStore`. Sequencing (resolve → mutate → log) → also `missionStore`, using the plain modules as tools.
 - **Aliasing rule**: `cell.unit` and the `soldiers.value` / `enemies.value` array entries are the same object reference. `soldiers.value` / `enemies.value` are canonical — treat `cell.unit` as an index into them. Never spread or clone a unit mid-mission or they desync. All health mutations go through `missionStore.applyAttack()` which mutates the canonical array entry.
 - CSS variables live on `#game` (root container) so they cascade to all children
 - Cells are a `ref` (not `computed`) so soldier placement mutations persist
