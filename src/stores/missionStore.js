@@ -175,6 +175,13 @@ export const useMissionStore = defineStore('mission', () => {
             target.currentHealth -= (result.damage - armorAbsorb);
         }
         attacker.currentAp -= 1;
+        attacker.currentAmmo -= 1;
+    }
+
+    function reload(unit){
+        unit.currentAmmo = unit.maxAmmo;
+        unit.currentAp -= 1;
+        logEvent(`${unit.name} reloaded`, `reload`)
     }
 
     //###### TURN ######
@@ -252,6 +259,7 @@ export const useMissionStore = defineStore('mission', () => {
         moveSoldier,
         toggleTargetingMode,
         applyAttack,
+        reload,
         endTurn,
         logEvent
     }

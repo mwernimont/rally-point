@@ -12,7 +12,7 @@
                     <div class="ap"><PhLightning :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentAp}}/{{missionStore.activeSoldier.maxAp}}</div>
                 </div>
                 <button id="attack" class="actionButton" @click="missionStore.toggleTargetingMode()" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0">Shoot</button>
-                <button id="reload" class="actionButton" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0">Reload</button>
+                <button id="reload" class="actionButton" @click="missionStore.reload(missionStore.activeSoldier)" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0 || missionStore.activeSoldier.currentAmmo === missionStore.activeSoldier.maxAmmo">Reload</button>
                 <button id="endTurn" class="actionButton" :class="{urgent: missionStore.allSoldierSpent }" @click="missionStore.endTurn()">End Turn</button>
             </div>
             <div id="map" class="grid">
@@ -256,6 +256,10 @@ onUnmounted(() => {
 
 .log-enemy-attack{
     color: red;
+}
+
+.log-reload{
+    color: salmon;
 }
 
 .log-enemy-move{
