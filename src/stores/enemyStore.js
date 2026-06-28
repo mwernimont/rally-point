@@ -10,7 +10,7 @@ export const useEnemyStore = defineStore('enemies', () => {
         {id: "5", name: "Medic", color: "#E10808", faction: "enemy", class: "Medic", currentHealth: 3, maxHealth: 3, currentMovement: 5, maxMovement: 5, currentArmor: 0, maxArmor: 0, currentAmmo: 4, maxAmmo: 4, currentAp: 2, maxAp: 2, accuracyByRange: {close: 50, medium: 50, long: 35}, damage: 1, items: [], injuries: "none"}
     ]);
     function pickEnemies(count){
-        const shuffled = [...enemies.value].sort(() => Math.random() - 0.5);
+        const shuffled = [...enemies.value].sort(() => Math.random() - 0.5);git 
         return shuffled.slice(0, count).map(e => ({ ...e }));
     }
     return {enemies, pickEnemies}

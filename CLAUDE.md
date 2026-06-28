@@ -18,9 +18,12 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - **Enemy movement**: on End Turn, each enemy finds the nearest living player soldier (Manhattan distance), calls `computeReachable` for its movement budget, and moves to the reachable cell closest to that target.
 - **Unit class icons**: Phosphor Icons rendered on unit cells via dynamic `<component :is="classIcons[cell.unit.class]">` lookup. `classIcons` map lives in `GameBoard.vue` as a display concern.
 - **`pathfinding.js`**: BFS extracted to `src/utils/pathFinding.js` as `computeReachable(cells, gridSize, startRow, startCol, budget)` → `Map<cellId, stepCost>`. Used by `missionStore.reachableMap` and `runEnemyTurn`.
-- **`combat.js`**: plain JS module at `src/utils/combat.js`. Exports `getRangeBracket(distance)`, `hasLoS(attacker, target, cells, gridSize)` → `{ blocked, halfCover }`, `resolveAttack({ attacker, target, cells, gridSize })` → `{ hit, damage, logMessage }`. No store imports, no state mutations.
-- **Player shooting**: Shoot button toggles `targetingMode` in `missionStore`. `validTargets` computed filters enemies with unblocked LoS. Clicking a valid target cell calls `applyAttack`. Targeting mode exits after shot or second Shoot press.
-- **`applyAttack(attackerId, targetId)`**: in `missionStore`. Looks up attacker and target across both arrays, calls `resolveAttack`, logs result, applies armor absorption then health damage if hit, deducts 1 AP from attacker.
+- **`combat.js`**: plain JS module at `src/utils/combat.js`. Exports `getRangeBracket(distance)`, `hasLoS(attacker, target, cells, gridSize)` → `{ blocked, halfCover }`, `resolveAttack({ attacker, target, cells, gridSize })` → `{ hit, damage, logMessage }`, `getTargetsInLoS(attacker, candidates, cells, gridSize)` → filtered array of living units with unblocked LoS. No store imports, no state mutations.
+- **Player shooting**: Shoot button toggles `targetingMode` in `missionStore`. `validTargets` computed calls `getTargetsInLoS` against enemies. Clicking a valid target cell calls `applyAttack`. Targeting mode exits after shot or second Shoot press. Shoot button disabled when ammo is 0.
+- **`applyAttack(attackerId, targetId)`**: in `missionStore`. Looks up attacker and target across both arrays, guards on `currentAmmo === 0`, calls `resolveAttack`, logs result, applies armor absorption then health damage if hit, deducts 1 AP and 1 ammo from attacker. Works for both player and enemy attackers.
+- **Reload**: `reload(unit)` in `missionStore` resets `currentAmmo` to `maxAmmo`, costs 1 AP, logs the action. Reload button disabled when ammo is full or AP is 0.
+- **Enemy shooting and reload**: after moving, each enemy calls `getTargetsInLoS` against living player soldiers, reduces to nearest with `nearestTo`, then shoots via `applyAttack` or reloads via `reload` if out of ammo. Enemy AP and movement reset in `endTurn` alongside players.
+- **`nearestTo(units, origin)`**: helper in `missionStore`. Reduces an array of units to the one closest to `origin` by Manhattan distance.
 
 ### Architecture
 - `soldierStore` — source of truth for the full player soldier roster
@@ -50,9 +53,10 @@ Order matters — each step depends on the previous:
 3. `startMission` resets log/turn/phase, deep-copies selected soldiers, calls `enemyStore.pickEnemies(count)`, picks spawn edges, generates grid, places soldiers and enemies
 
 ## Next Up
-- **Enemy shooting**: wire `applyAttack` into `runEnemyTurn` — after each enemy moves, if a player soldier is within range and has LoS, enemy shoots. Same `applyAttack` call, just enemy as attacker and soldier as target.
-- **Reload**: Reload button costs 1 AP, resets `activeSoldier.currentAmmo` to `maxAmmo`. Needs a `reloadSoldier(soldierId)` action in `missionStore`. Disable Reload button when ammo is already full or soldier has no AP.
-- **Ammo gating**: `applyAttack` should check `attacker.currentAmmo > 0` before firing and deduct 1 ammo on shot. Currently ammo is tracked but not enforced.
+- **Dead unit cleanup**: dead soldiers and enemies still move and shoot. Units with `currentHealth <= 0` need to be filtered out of `runEnemyTurn` and removed from their cell on the board.
+- **Win/loss condition**: detect when all enemies or all players are dead and end the mission.
+- **Enemy health UI**: no way to tell an enemy's condition before shooting. Need some indicator on enemy cells — health bar, color shift, or stat display on hover/click.
+- **Targeting mode resets on soldier switch**: switching active soldier while in targeting mode leaves `targetingMode` on, putting the new soldier straight into targeting mode with a broken UI state. `setActiveSoldier` should clear `targetingMode`.
 
 ## Combat Design (planned, not yet implemented)
 
@@ -89,8 +93,7 @@ Hit resolution logs the full math and result:
 ### Enemy Turn
 - Phase tracked by `currentPhase` ref (`'player' | 'enemy'`) in `missionStore`
 - `endTurn` flips to `'enemy'`, calls `runEnemyTurn()`, flips back to `'player'`
-- Current AI: each enemy finds nearest living player soldier by Manhattan distance, calls `computeReachable`, moves to the reachable cell closest to that target
-- Next: enemies should shoot when a player soldier is in LoS after moving. Call `applyAttack(enemy.id, target.id)` inside `runEnemyTurn` after movement resolves.
+- Current AI: each enemy moves toward the nearest living player soldier, then shoots the nearest player with LoS via `applyAttack`, or reloads if out of ammo. Uses `nearestTo` and `getTargetsInLoS` helpers.
 
 ## Dev Notes
 - User writes the code — Claude is a thinking partner only, no writing code unless scaffolding comments

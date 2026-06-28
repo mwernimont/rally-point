@@ -22,6 +22,12 @@ export const hasLoS = (attacker, target, cells, gridSize) => {
     return {blocked: false, halfCover}
 }
 
+export const getTargetsInLoS = (attacker, candidates, cells, gridSize) => {
+    return candidates
+        .filter(t => t.currentHealth > 0)
+        .filter(t => !hasLoS(attacker, t, cells, gridSize).blocked)
+}
+
 export const resolveAttack = ({attacker, target, cells, gridSize}) => {
     const distance = chebyshevDistance(target, attacker);
     const los = hasLoS(attacker, target, cells, gridSize);

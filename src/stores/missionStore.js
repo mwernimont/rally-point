@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useEnemyStore } from './enemyStore';
 import { computeReachable } from '../utils/pathFinding';
-import { resolveAttack, hasLoS } from '../utils/combat';
+import { resolveAttack, hasLoS, getTargetsInLoS } from '../utils/combat';
 
 export const useMissionStore = defineStore('mission', () => {
 
@@ -43,10 +43,8 @@ export const useMissionStore = defineStore('mission', () => {
     });
 
     const validTargets = computed(() => {
-        if(targetingMode.value){
-            return enemies.value.filter(e => !hasLoS(activeSoldier.value, e, cells.value, gridSize.value).blocked);
-        }
-        return [];
+        if(!targetingMode.value) return [];
+        return getTargetsInLoS(activeSoldier.value, enemies.value, cells.value, gridSize.value);
     })
 
     //###### MAP GENERATION ######
@@ -167,6 +165,7 @@ export const useMissionStore = defineStore('mission', () => {
     function applyAttack(attackerId, targetId){
         const attacker = soldiers.value.find(s => s.id === attackerId) ?? enemies.value.find(e => e.id === attackerId);
         const target = soldiers.value.find(s => s.id === targetId) ?? enemies.value.find(e => e.id === targetId);
+        if(attacker.currentAmmo === 0) return;
         const result = resolveAttack({attacker, target, cells: cells.value, gridSize: gridSize.value});
         logEvent(result.logMessage, `${attacker.faction}-attack`);
         if(result.hit){
@@ -194,19 +193,19 @@ export const useMissionStore = defineStore('mission', () => {
             s.currentMovement = s.maxMovement;
             s.currentAp = s.maxAp;
         });
+        enemies.value.forEach(e => {
+            e.currentMovement = e.maxMovement;
+            e.currentAp = e.maxAp;
+        });
         activeSoldierId.value = soldiers.value.find(s => s.currentHealth > 0)?.id;
         logEvent(`Turn ${currentTurn.value} started`, "turn")
     }
 
     function runEnemyTurn(){
         enemies.value.forEach(enemy => {
-            const target = soldiers.value
+            const targets = soldiers.value
             .filter(s => s.currentHealth > 0)
-            .reduce((closest, s) => {
-                const distToS = Math.abs(s.row - enemy.row) + Math.abs(s.col - enemy.col);
-                const distToClosest = Math.abs(closest.row - enemy.row) + Math.abs(closest.col - enemy.col);
-                return distToS < distToClosest ? s : closest;
-            });
+            const target = nearestTo(targets, enemy);
             const reachable = computeReachable(cells.value, gridSize.value, enemy.row, enemy.col, enemy.currentMovement);
 
             let bestCell = null;
@@ -220,13 +219,19 @@ export const useMissionStore = defineStore('mission', () => {
                     bestCell = cell;
                 }
             }
-            if(!bestCell) return;
-            const oldCell = cellAt(enemy.row, enemy.col);
-            oldCell.unit = null;
-            bestCell.unit = enemy;
-            enemy.row = bestCell.row;
-            enemy.col = bestCell.col;
-            logEvent(`${enemy.name} moved to {${enemy.row}, ${enemy.col}}`, 'enemy-move');
+            if(bestCell){
+                const oldCell = cellAt(enemy.row, enemy.col);
+                oldCell.unit = null;
+                bestCell.unit = enemy;
+                enemy.row = bestCell.row;
+                enemy.col = bestCell.col;
+                enemy.currentAp -= 1;
+                logEvent(`${enemy.name} moved to {${enemy.row}, ${enemy.col}}`, 'enemy-move');
+            }
+            const shootTargets = getTargetsInLoS(enemy, soldiers.value, cells.value, gridSize.value);
+            const shootTarget = shootTargets.length ? nearestTo(shootTargets, enemy) : null;
+            if(enemy.currentAmmo === 0) reload(enemy);
+            else if(shootTarget) applyAttack(enemy.id, shootTarget.id);
         })
     }
 
@@ -238,6 +243,14 @@ export const useMissionStore = defineStore('mission', () => {
     //###### HELPER ######
     function cellAt(row, col){
         return cells.value[row * gridSize.value + col];
+    }
+
+    function nearestTo(units, origin){
+        return units.reduce((nearest, s) => {
+            const distToS = Math.abs(s.row - origin.row) + Math.abs(s.col - origin.col);
+            const distToClosest = Math.abs(nearest.row - origin.row) + Math.abs(nearest.col - origin.col);
+            return distToS < distToClosest ? s : nearest;
+        }, units[0])
     }
 
     return {
