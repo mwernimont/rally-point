@@ -17,6 +17,7 @@ export const useMissionStore = defineStore('mission', () => {
     const currentPhase = ref("player");
     const gameLog = ref([]);
     const targetingMode = ref(false);
+    const missionOutcome = ref(null);
 
     //###### COMPUTED ######
     const activeSoldier = computed(() => soldiers.value.find(s => s.id === activeSoldierId.value))
@@ -117,6 +118,7 @@ export const useMissionStore = defineStore('mission', () => {
 
     //###### MISSION LIFECYCLE ######
     function startMission(selectedSoldiers){
+        missionOutcome.value = null;
         gameLog.value = [];
         currentTurn.value = 1;
         currentPhase.value = "player";
@@ -172,6 +174,8 @@ export const useMissionStore = defineStore('mission', () => {
         if(target.currentHealth <= 0){
             cells.value[target.row * gridSize.value + target.col].unit = null;
         }
+        if (enemies.value.every(e => e.currentHealth <= 0)) missionOutcome.value = 'win';
+        else if (soldiers.value.every(s => s.currentHealth <= 0)) missionOutcome.value = 'loss';
         attacker.currentAp -= 1;
         attacker.currentAmmo -= 1;
     }
@@ -271,6 +275,7 @@ export const useMissionStore = defineStore('mission', () => {
         validMoveCells,
         validTargets,
         targetingMode,
+        missionOutcome,
         startMission,
         setActiveSoldier,
         moveSoldier,

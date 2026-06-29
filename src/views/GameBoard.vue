@@ -36,6 +36,7 @@
                 </div>
             </div>
         </div>
+         
         <div id="game-log-container">
             <div id="game-log-label">
                 Game Log
@@ -44,12 +45,14 @@
                 <div v-for="(log, index) in missionStore.gameLog" :key="index" :class="`log-${log.type}`">{{ log.message }}</div>
             </div>
         </div>
+        <MissionOutcome v-if="missionStore.missionOutcome"/>
     </div>
 </template>
 <script setup>
 import {ref, computed, onMounted, onUnmounted} from 'vue';
 import { useMissionStore } from '../stores/missionStore';
 import { PhCrosshair, PhHeartbeat, PhShield, PhSneakerMove, PhLightning, PhBroadcast, PhFirstAid, PhCaretDoubleUp } from "@phosphor-icons/vue";
+import MissionOutcome from '../components/MissionOutcome.vue';
 const missionStore = useMissionStore();
 const gapSize = ref(5)
 const sidebarWidth = ref(300)
