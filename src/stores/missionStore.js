@@ -140,6 +140,7 @@ export const useMissionStore = defineStore('mission', () => {
     //###### SOLDIER ACTIONS ######
     function setActiveSoldier(id){
         activeSoldierId.value = id;
+        targetingMode.value = false;
     }
 
     function moveSoldier(soldier, targetCell){
@@ -202,6 +203,7 @@ export const useMissionStore = defineStore('mission', () => {
             e.currentAp = e.maxAp;
         });
         activeSoldierId.value = soldiers.value.find(s => s.currentHealth > 0)?.id;
+        targetingMode.value = false;
         logEvent(`Turn ${currentTurn.value} started`, "turn")
     }
 

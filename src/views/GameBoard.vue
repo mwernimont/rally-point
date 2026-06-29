@@ -11,7 +11,7 @@
                     <div class="movement"><PhSneakerMove :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentMovement}}/{{missionStore.activeSoldier.maxMovement}}</div>
                     <div class="ap"><PhLightning :size="15" weight="fill" color="currentColor"/> {{missionStore.activeSoldier.currentAp}}/{{missionStore.activeSoldier.maxAp}}</div>
                 </div>
-                <button id="attack" class="actionButton" @click="missionStore.toggleTargetingMode()" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0 || missionStore.activeSoldier.currentAmmo === 0">Shoot</button>
+                <button id="attack" class="actionButton" :class="missionStore.targetingMode ? 'targetingMode' : null" @click="missionStore.toggleTargetingMode()" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0 || missionStore.activeSoldier.currentAmmo === 0">Shoot</button>
                 <button id="reload" class="actionButton" @click="missionStore.reload(missionStore.activeSoldier)" :disabled="!missionStore.activeSoldier || missionStore.activeSoldier.currentAp <= 0 || missionStore.activeSoldier.currentAmmo === missionStore.activeSoldier.maxAmmo">Reload</button>
                 <button id="endTurn" class="actionButton" :class="{urgent: missionStore.allSoldierSpent }" @click="missionStore.endTurn()">End Turn</button>
             </div>
@@ -209,6 +209,11 @@ onUnmounted(() => {
 
 #attack{
     --btn-color: #{$color-secondary};
+}
+
+#attack.targetingMode{
+    background: var(--btn-color);
+    color: $color-text;
 }
 
 #reload{
