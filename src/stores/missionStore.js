@@ -33,13 +33,7 @@ export const useMissionStore = defineStore('mission', () => {
     const validMoveCells = computed(() => {
         const soldier = activeSoldier.value
         if (!soldier) return []
-        return cells.value.filter(cell => {
-            if(!reachableMap.value.has(cell.id)) return false;
-            const isOwnCell = cell.row === soldier.row && cell.col === soldier.col
-            const isOccupied = !!cell.unit
-            const isCover = !!cell.cover
-            return !isOwnCell && !isOccupied && !isCover
-        })
+        return validDestinations(reachableMap.value, soldier);
     });
 
     const validTargets = computed(() => {
@@ -215,17 +209,11 @@ export const useMissionStore = defineStore('mission', () => {
             if (!targets.length) return;
             const target = nearestTo(targets, enemy);
             const reachable = computeReachable(cells.value, gridSize.value, enemy.row, enemy.col, enemy.currentMovement);
-            let bestCell = null;
-            let bestDist = Infinity;
-            for(const [cellId] of reachable){
-                const cell = cells.value[cellId];
-                if(cell.unit) continue;
+            const destinations = validDestinations(reachable, enemy);
+            const bestCell = destinations.reduce((best, cell) => {
                 const dist = Math.abs(cell.row - target.row) + Math.abs(cell.col - target.col);
-                if(dist < bestDist){
-                    bestDist = dist;
-                    bestCell = cell;
-                }
-            }
+                return dist < Math.abs(best.row - target.row) + Math.abs(best.col - target.col) ? cell : best;
+            }, destinations[0]) ?? null;
             if(bestCell){
                 const oldCell = cellAt(enemy.row, enemy.col);
                 oldCell.unit = null;
@@ -258,6 +246,15 @@ export const useMissionStore = defineStore('mission', () => {
             const distToClosest = Math.abs(nearest.row - origin.row) + Math.abs(nearest.col - origin.col);
             return distToS < distToClosest ? s : nearest;
         }, units[0])
+    }
+
+    function validDestinations(reachableMap, unit){
+        return cells.value.filter(cell => 
+            reachableMap.has(cell.id) &&
+            !(cell.row === unit.row && cell.col === unit.col) &&
+            !cell.unit &&
+            !cell.cover
+        );
     }
 
     return {
