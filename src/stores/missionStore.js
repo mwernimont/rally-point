@@ -173,6 +173,10 @@ export const useMissionStore = defineStore('mission', () => {
             target.currentArmor -= armorAbsorb
             target.currentHealth -= (result.damage - armorAbsorb);
         }
+        //Remove dead soldiers from game board
+        if(target.currentHealth <= 0){
+            cells.value[target.row * gridSize.value + target.col].unit = null;
+        }
         attacker.currentAp -= 1;
         attacker.currentAmmo -= 1;
     }
@@ -203,11 +207,12 @@ export const useMissionStore = defineStore('mission', () => {
 
     function runEnemyTurn(){
         enemies.value.forEach(enemy => {
+            if (enemy.currentHealth <= 0) return;
             const targets = soldiers.value
             .filter(s => s.currentHealth > 0)
+            if (!targets.length) return;
             const target = nearestTo(targets, enemy);
             const reachable = computeReachable(cells.value, gridSize.value, enemy.row, enemy.col, enemy.currentMovement);
-
             let bestCell = null;
             let bestDist = Infinity;
             for(const [cellId] of reachable){

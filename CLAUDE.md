@@ -2,6 +2,10 @@
 
 A turn-based tactical strategy game built with Vue 3 + Pinia.
 
+## AI Behavior Constraints
+- Do not qualify advice based on assumptions about this project's scale, production status, or importance. Give the same quality of reasoning you would for any serious software. Avoid phrases like "in a real production app," "for a project like this," or similar hedging that implies the codebase doesn't warrant good decisions.
+- Do not recommend skipping DRY principles or good structure based on assumptions about current project complexity. If duplication would normally be worth addressing, say so — don't suppress the advice because you think the project doesn't need it yet.
+
 ## Current State
 
 ### Completed
