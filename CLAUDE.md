@@ -28,6 +28,12 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - **Reload**: `reload(unit)` in `missionStore` resets `currentAmmo` to `maxAmmo`, costs 1 AP, logs the action. Reload button disabled when ammo is full or AP is 0.
 - **Enemy shooting and reload**: after moving, each enemy calls `getTargetsInLoS` against living player soldiers, reduces to nearest with `nearestTo`, then shoots via `applyAttack` or reloads via `reload` if out of ammo. Enemy AP and movement reset in `endTurn` alongside players.
 - **`nearestTo(units, origin)`**: helper in `missionStore`. Reduces an array of units to the one closest to `origin` by Manhattan distance.
+- **Dead unit cleanup**: `applyAttack` clears `cell.unit` immediately when health drops to 0, removing the unit from the board for both factions. `runEnemyTurn` guards with `if (enemy.currentHealth <= 0) return` to skip dead enemies. `endTurn` auto-selects the first living soldier via `soldiers.value.find(s => s.currentHealth > 0)?.id`.
+- **`validDestinations(reachableMap, unit)`**: helper in `missionStore`. Filters reachable cells to valid move destinations — excludes the unit's own cell, occupied cells, and cover cells. Used by both `validMoveCells` computed and `runEnemyTurn` to keep destination filtering DRY.
+- **Targeting mode resets**: `setActiveSoldier` clears `targetingMode` on soldier switch. `endTurn` also clears it so a player can't carry targeting mode into the next turn.
+- **Shoot button active state**: Shoot button gets a `targetingMode` CSS class when targeting mode is on for visual feedback.
+- **Win/loss detection**: `applyAttack` checks after every health mutation — if all enemies are dead sets `missionOutcome` to `'win'`, if all soldiers are dead sets it to `'loss'`. `missionOutcome` ref is `null` during play, reset to `null` in `startMission`.
+- **`MissionOutcome.vue`**: centered modal over a full-screen dimmer (`position: fixed`, `inset: 0`). Reads `missionStore.missionOutcome` directly. Shows "Mission Success!" or "Mission Failure!" with a win/loss CSS class. Mounted in `GameBoard.vue` via `v-if="missionStore.missionOutcome"`.
 
 ### Architecture
 - `soldierStore` — source of truth for the full player soldier roster
@@ -57,12 +63,11 @@ Order matters — each step depends on the previous:
 3. `startMission` resets log/turn/phase, deep-copies selected soldiers, calls `enemyStore.pickEnemies(count)`, picks spawn edges, generates grid, places soldiers and enemies
 
 ## Next Up
-- **Dead unit cleanup**: dead soldiers and enemies still move and shoot. Units with `currentHealth <= 0` need to be filtered out of `runEnemyTurn` and removed from their cell on the board.
-- **Win/loss condition**: detect when all enemies or all players are dead and end the mission.
 - **Enemy health UI**: no way to tell an enemy's condition before shooting. Need some indicator on enemy cells — health bar, color shift, or stat display on hover/click.
-- **Targeting mode resets on soldier switch**: switching active soldier while in targeting mode leaves `targetingMode` on, putting the new soldier straight into targeting mode with a broken UI state. `setActiveSoldier` should clear `targetingMode`.
+- **Mission outcome actions**: "Leave Mission" button routes back to SquadSelect.
+- **Play again flow**: after a mission ends, starting a new mission should feel clean — squad selection cleared, store state fully reset.
 
-## Combat Design (planned, not yet implemented)
+## Combat Design (implemented)
 
 ### Action Economy
 - Each unit has AP (`currentAp`) spent on actions each turn, reset on turn start

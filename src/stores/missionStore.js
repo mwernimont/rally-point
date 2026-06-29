@@ -22,7 +22,7 @@ export const useMissionStore = defineStore('mission', () => {
     //###### COMPUTED ######
     const activeSoldier = computed(() => soldiers.value.find(s => s.id === activeSoldierId.value))
 
-    const allSoldierSpent = computed(() => soldiers.value.every(s => s.currentAp <= 0));
+    const allSoldierSpent = computed(() => soldiers.value.filter(s => s.currentHealth > 0).every(s => s.currentAp <= 0));
 
     const reachableMap = computed(() => {
         const soldier = activeSoldier.value;
@@ -192,11 +192,11 @@ export const useMissionStore = defineStore('mission', () => {
         runEnemyTurn();
         currentPhase.value = "player";
         currentTurn.value++;
-        soldiers.value.forEach(s => {
+        soldiers.value.filter(s => s.currentHealth > 0).forEach(s => {
             s.currentMovement = s.maxMovement;
             s.currentAp = s.maxAp;
         });
-        enemies.value.forEach(e => {
+        enemies.value.filter(s => s.currentHealth > 0).forEach(e => {
             e.currentMovement = e.maxMovement;
             e.currentAp = e.maxAp;
         });
