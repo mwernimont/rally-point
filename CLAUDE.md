@@ -64,7 +64,6 @@ Order matters — each step depends on the previous:
 
 ## Next Up
 - **Enemy health UI**: no way to tell an enemy's condition before shooting. Need some indicator on enemy cells — health bar, color shift, or stat display on hover/click.
-- **Mission outcome actions**: "Leave Mission" button routes back to SquadSelect.
 - **Play again flow**: after a mission ends, starting a new mission should feel clean — squad selection cleared, store state fully reset.
 
 ## Combat Design (implemented)
