@@ -32,7 +32,14 @@
                     :style="cell.unit ? { background: cell.unit.color } : {}"
                     @click="onCellClick(cell)"
                 >
-                <component v-if="cell.unit" :is="classIcons[cell.unit.class]" :size="16" weight="fill" color="#000"/>
+                    <!-- Enemy health bar -->
+                    <div v-if="cell.unit?.faction === 'enemy'" class="health-pips">
+                        <span v-for="n in cell.unit.maxHealth" :key="n" :class="{ filled: n <= cell.unit.currentHealth }"></span>
+                    </div>
+                    <!-- Class Icon -->
+                    <div class="class-icon">
+                        <component v-if="cell.unit" :is="classIcons[cell.unit.class]" :size="14" weight="fill" color="#000"/>
+                    </div>
                 </div>
             </div>
         </div>
@@ -152,8 +159,8 @@ onUnmounted(() => {
 
 .soldier, .enemy{
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    gap: 1px;
 }
 
 .active-soldier{
@@ -230,6 +237,27 @@ onUnmounted(() => {
 #endTurn.urgent {
     background: var(--btn-color);
     color: $color-text;
+}
+
+.class-icon{
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+//Enemy UI
+.health-pips{
+    display: flex;
+    gap: 1px;
+    height: 2px;
+    width: 100%;
+    span{
+        &.filled{
+            background: $color-text;
+            flex: 1;
+        }
+    }
 }
 // GAME LOG
 #game-log-container{
