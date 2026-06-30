@@ -33,12 +33,12 @@
                     @click="onCellClick(cell)"
                 >
                     <!-- Enemy health bar -->
-                    <div v-if="cell.unit?.faction === 'enemy'" class="health-pips">
-                        <span v-for="n in cell.unit.maxHealth" :key="n" :class="{ filled: n <= cell.unit.currentHealth }"></span>
+                    <div v-if="cell.unit?.faction === 'enemy'" class="health-track">
+                        <span class="health-fill" :style="{ width: (cell.unit.currentHealth / cell.unit.maxHealth * 100) + '%' }"></span>
                     </div>
                     <!-- Class Icon -->
-                    <div class="class-icon">
-                        <component v-if="cell.unit" :is="classIcons[cell.unit.class]" :size="14" weight="fill" color="#000"/>
+                    <div v-if="cell.unit" class="class-icon">
+                        <component :is="classIcons[cell.unit.class]" :size="14" weight="fill" color="#000"/>
                     </div>
                 </div>
             </div>
@@ -247,16 +247,14 @@ onUnmounted(() => {
 }
 
 //Enemy UI
-.health-pips{
+.health-track{
     display: flex;
-    gap: 1px;
-    height: 2px;
+    height: 4px;
     width: 100%;
-    span{
-        &.filled{
-            background: $color-text;
-            flex: 1;
-        }
+    border: 1px solid #000;
+    .health-fill{
+        height: 100%;
+        background: repeating-linear-gradient(90deg, $color-text 0 3px, transparent 3px 2px);
     }
 }
 // GAME LOG
