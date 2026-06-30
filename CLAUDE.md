@@ -17,7 +17,7 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - **Soldier movement**: clicking a valid move cell moves the active soldier, deducts path cost from `currentMovement`, and costs 1 AP. Valid cells highlighted on the map. No highlight when soldier is out of AP.
 - **Action buttons**: Shoot and Reload buttons disabled (greyed out) when active soldier has no AP. End Turn button fills solid when all soldiers are out of AP (`allSoldierSpent`).
 - **End Turn**: flips phase to `'enemy'`, runs enemy turn, flips back to `'player'`, resets `currentMovement` and `currentAp` for all soldiers, increments `currentTurn`, auto-selects first living soldier, logs turn start.
-- **Game Log**: sidebar log with color-coded entries by type (`turn`, `move`). Newest entries at top. `logEvent(message, type)` is the single function all actions call. Clears on new mission.
+- **Game Log**: sidebar log with color-coded entries by type (`turn`, `move`, `death`, etc.). Newest entries at top. `logEvent(message, type)` is the single function all actions call. Clears on new mission.
 - **Enemies on board**: Enemies randomly selected from `enemyStore` pool via `pickEnemies(count)`, placed on the opposite edge from players. Clicking an enemy cell is ignored (faction check in `onCellClick`).
 - **Enemy movement**: on End Turn, each enemy finds the nearest living player soldier (Manhattan distance), calls `computeReachable` for its movement budget, and moves to the reachable cell closest to that target.
 - **Unit class icons**: Phosphor Icons rendered on unit cells via dynamic `<component :is="classIcons[cell.unit.class]">` lookup. `classIcons` map lives in `GameBoard.vue` as a display concern.
@@ -34,6 +34,8 @@ A turn-based tactical strategy game built with Vue 3 + Pinia.
 - **Shoot button active state**: Shoot button gets a `targetingMode` CSS class when targeting mode is on for visual feedback.
 - **Win/loss detection**: `applyAttack` checks after every health mutation — if all enemies are dead sets `missionOutcome` to `'win'`, if all soldiers are dead sets it to `'loss'`. `missionOutcome` ref is `null` during play, reset to `null` in `startMission`.
 - **`MissionOutcome.vue`**: centered modal over a full-screen dimmer (`position: fixed`, `inset: 0`). Reads `missionStore.missionOutcome` directly. Shows "Mission Success!" or "Mission Failure!" with a win/loss CSS class. Mounted in `GameBoard.vue` via `v-if="missionStore.missionOutcome"`.
+- **Enemy health pips**: `GameBoard.vue` renders one `<span>` per point of `maxHealth` inside `.health-pips` (`v-for="n in cell.unit.maxHealth"`), filled (`.filled` class) when `n <= currentHealth`. Enemy-only (`cell.unit?.faction === 'enemy'`), purely a display read off the existing reactive `cell.unit` aliasing — no store changes needed since `applyAttack` already mutates the canonical unit object in place.
+- **Death log message**: `applyAttack` logs `` `${target.name} died!` `` with log type `'death'` immediately after clearing `cell.unit`, before the win/loss check. `'death'` has its own color rule (`.log-death`) alongside the existing log types.
 
 ### Architecture
 - `soldierStore` — source of truth for the full player soldier roster
@@ -63,7 +65,6 @@ Order matters — each step depends on the previous:
 3. `startMission` resets log/turn/phase, deep-copies selected soldiers, calls `enemyStore.pickEnemies(count)`, picks spawn edges, generates grid, places soldiers and enemies
 
 ## Next Up
-- **Enemy health UI**: no way to tell an enemy's condition before shooting. Need some indicator on enemy cells — health bar, color shift, or stat display on hover/click.
 - **Play again flow**: after a mission ends, starting a new mission should feel clean — squad selection cleared, store state fully reset.
 
 ## Combat Design (implemented)

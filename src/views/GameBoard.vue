@@ -283,7 +283,7 @@ onUnmounted(() => {
     color: $color-secondary;
 }
 .log-player-move{
-    color: green;
+    color: #2BFF00;
 }
 
 .log-player-attack{
@@ -299,7 +299,11 @@ onUnmounted(() => {
 }
 
 .log-enemy-move{
-    color: blue;
+    color: #27E7F5;
+}
+
+.log-death{
+    color: #FF7700;
 }
 
 </style>

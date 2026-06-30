@@ -173,6 +173,7 @@ export const useMissionStore = defineStore('mission', () => {
         //Remove dead soldiers from game board
         if(target.currentHealth <= 0){
             cells.value[target.row * gridSize.value + target.col].unit = null;
+            logEvent(`${target.name} died!`, "death");
         }
         if (enemies.value.every(e => e.currentHealth <= 0)) missionOutcome.value = 'win';
         else if (soldiers.value.every(s => s.currentHealth <= 0)) missionOutcome.value = 'loss';
